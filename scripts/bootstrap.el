@@ -198,7 +198,10 @@ Resolved from inputs, env vars, Package-Requires, and EXTRA-DEPS."
 ;; Execute standard bootstrapping
 (elisp-ci--configure-archives)
 (elisp-ci--setup-load-paths)
-(elisp-ci--install-dependencies)
+(unless (string-equal (or (getenv "INPUT_RUNNER")
+                          (getenv "ELISP_CI_RUNNER"))
+                      "elpaish")
+  (elisp-ci--install-dependencies))
 
 (provide 'bootstrap)
 ;;; bootstrap.el ends here
