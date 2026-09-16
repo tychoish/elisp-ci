@@ -12,12 +12,12 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    container: silex/emacs:${{ matrix.emacs_version }}-ci
+    container: silex/emacs:${{ matrix.emacs-version }}-ci
     timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
-        emacs_version:
+        emacs-version:
           - "29.4"
           - "30.2"
 

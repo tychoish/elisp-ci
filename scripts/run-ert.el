@@ -15,7 +15,9 @@
 (defun elisp-ci--run-tests ()
   "Load test files and execute ERT test suite."
   (let ((test-files (elisp-ci--find-test-files))
-        (runner (or (getenv "INPUT_RUNNER") "ert")))
+        (runner (or (getenv "INPUT_RUNNER")
+                    (getenv "ELISP_CI_RUNNER")
+                    "ert")))
     (unless test-files
       (message "No test files found matching INPUT_TEST_FILES")
       (kill-emacs 1))

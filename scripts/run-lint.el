@@ -15,7 +15,9 @@
 
 (defun elisp-ci--find-target-files ()
   "Find elisp target files to lint from INPUT_TARGET_FILES."
-  (let* ((pattern-input (or (getenv "INPUT_TARGET_FILES") "*.el"))
+  (let* ((pattern-input (or (getenv "INPUT_TARGET_FILES")
+                            (getenv "ELISP_CI_TARGET_FILES")
+                            "*.el"))
          (patterns (elisp-ci--parse-list pattern-input))
          (matched nil))
     (dolist (pat patterns)
@@ -27,10 +29,14 @@
   "Run enabled linters across target files with configurable requirement gates."
   (let* ((files (elisp-ci--find-target-files))
          (active-linters (or (elisp-ci--parse-list (getenv "INPUT_LINTERS"))
+                             (elisp-ci--parse-list (getenv "ELISP_CI_LINTERS"))
                              '("byte-compile" "checkdoc")))
          (required-linters (or (elisp-ci--parse-list (getenv "INPUT_REQUIRED_LINTERS"))
+                               (elisp-ci--parse-list (getenv "ELISP_CI_REQUIRED_LINTERS"))
                                active-linters))
-         (fail-on-warning (not (string-equal (getenv "INPUT_FAIL_ON_WARNING") "false")))
+         (fail-on-warning (not (string-equal (or (getenv "INPUT_FAIL_ON_WARNING")
+                                                 (getenv "ELISP_CI_FAIL_ON_WARNING"))
+                                             "false")))
          (error-count 0)
          (warning-count 0))
 
@@ -89,7 +95,7 @@
                   (message "package-lint: %s:%d: %s" f (nth 1 e) (nth 2 e)))
                 (if (member "package-lint" required-linters)
                     (cl-incf error-count (length errors))
-                  (cl-incf warning-count (length errors)))))
+                  (cl-incf warning-count (length errors))))))
           (error
            (message "Error running package-lint on %s: %S" f err)))))
 
@@ -105,7 +111,7 @@
               (when errors
                 (if (member "relint" required-linters)
                     (cl-incf error-count (length errors))
-                  (cl-incf warning-count (length errors)))))
+                  (cl-incf warning-count (length errors))))))
           (error
            (message "Error running relint on %s: %S" f err)))))
 

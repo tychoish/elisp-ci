@@ -33,16 +33,22 @@
 
 (defun elisp-ci--setup-and-run-coverage ()
   "Setup undercover, load test files, and output coverage report."
-  (let* ((output-file (or (getenv "INPUT_OUTPUT_FILE") "coverage.json"))
-         (source-pat (or (getenv "INPUT_SOURCE_FILES") "*.el"))
-         (format-opt (or (getenv "INPUT_REPORT_FORMAT") "simplecov"))
+  (let* ((output-file (or (getenv "INPUT_OUTPUT_FILE")
+                          (getenv "ELISP_CI_OUTPUT_FILE")
+                          "coverage.json"))
+         (source-pat (or (getenv "INPUT_SOURCE_FILES")
+                         (getenv "ELISP_CI_SOURCE_FILES")
+                         "*.el"))
+         (format-opt (or (getenv "INPUT_REPORT_FORMAT")
+                         (getenv "ELISP_CI_REPORT_FORMAT")
+                         "simplecov"))
          (test-files (elisp-ci--find-test-files))
          (source-patterns (elisp-ci--parse-list source-pat))
          (source-files nil))
 
     (dolist (sp source-patterns)
       (setq source-files (append source-files (file-expand-wildcards sp t))))
-    (setq source-files (delete-dups source-files))
+    (setq source-files (delete-dups source-files)))
 
     ;; Install undercover from MELPA
     (elisp-ci--install-dependencies '(undercover))
