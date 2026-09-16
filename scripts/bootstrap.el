@@ -167,6 +167,10 @@ Resolved from inputs, env vars, Package-Requires headers, and EXTRA-DEPS."
   "Install required dependencies.
 Resolved from inputs, env vars, Package-Requires, and EXTRA-DEPS."
   (package-initialize)
+  ;; Workaround for upstream transient generic function incompatibility when upgrading
+  (when (and (fboundp (quote transient--init-suffix-key))
+             (not (get (quote transient--init-suffix-key) (quote cl--generic))))
+    (fmakunbound (quote transient--init-suffix-key)))
   (let* ((dep-strs (elisp-ci--get-dependencies extra-deps))
          (dep-syms (delete-dups (mapcar #'intern dep-strs))))
     (when dep-syms

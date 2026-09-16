@@ -22,9 +22,6 @@
       (message "No test files found matching INPUT_TEST_FILES")
       (kill-emacs 1))
     (message "Discovered test files: %S" test-files)
-    (dolist (tf test-files)
-      (message "Loading test file: %s" tf)
-      (load-file (expand-file-name tf)))
 
     (if (string-equal runner "elpaish")
         (progn
@@ -33,6 +30,9 @@
           (require 'elpaish-check)
           (elpaish-test-package-batch))
       ;; Standard ERT batch runner
+      (dolist (tf test-files)
+        (message "Loading test file: %s" tf)
+        (load-file (expand-file-name tf)))
       (ert-run-tests-batch-and-exit))))
 
 (elisp-ci--run-tests)
