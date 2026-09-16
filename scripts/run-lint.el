@@ -3,6 +3,7 @@
 (require 'bytecomp)
 (require 'seq)
 (require 'subr-x)
+(require 'cl-lib)
 
 ;; Load bootstrap logic
 (let ((bootstrap-file (expand-file-name "bootstrap.el" (file-name-directory (or load-file-name buffer-file-name)))))
@@ -95,7 +96,7 @@
                   (message "package-lint: %s:%d: %s" f (nth 1 e) (nth 2 e)))
                 (if (member "package-lint" required-linters)
                     (cl-incf error-count (length errors))
-                  (cl-incf warning-count (length errors))))))
+                  (cl-incf warning-count (length errors)))))
           (error
            (message "Error running package-lint on %s: %S" f err)))))
 
@@ -111,7 +112,7 @@
               (when errors
                 (if (member "relint" required-linters)
                     (cl-incf error-count (length errors))
-                  (cl-incf warning-count (length errors))))))
+                  (cl-incf warning-count (length errors)))))
           (error
            (message "Error running relint on %s: %S" f err)))))
 
