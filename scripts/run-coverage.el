@@ -48,7 +48,7 @@
 
     (dolist (sp source-patterns)
       (setq source-files (append source-files (file-expand-wildcards sp t))))
-    (setq source-files (delete-dups source-files)))
+    (setq source-files (delete-dups source-files))
 
     ;; Install undercover from MELPA
     (elisp-ci--install-dependencies '(undercover))
