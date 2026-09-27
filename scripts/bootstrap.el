@@ -167,16 +167,19 @@ Resolved from inputs, env vars, Package-Requires headers, and EXTRA-DEPS."
   "Install required dependencies.
 Resolved from inputs, env vars, Package-Requires, and EXTRA-DEPS."
   (package-initialize)
-  ;; Workaround for upstream transient generic function incompatibility when upgrading
-  (when (and (fboundp (quote transient--init-suffix-key))
-             (not (get (quote transient--init-suffix-key) (quote cl--generic))))
-    (fmakunbound (quote transient--init-suffix-key)))
   (let* ((dep-strs (elisp-ci--get-dependencies extra-deps))
          (dep-syms (delete-dups (mapcar #'intern dep-strs))))
     (when dep-syms
       (unless package-archive-contents
         (message "Refreshing package archive contents...")
         (package-refresh-contents))
+      ;; Pre-install transient archive package if requested or needed by dependencies
+      ;; to avoid built-in Emacs 30 transient conflict with cl-generic
+      (when (member 'transient dep-syms)
+        (let ((desc (cadr (assq 'transient package-archive-contents))))
+          (when desc
+            (message "Installing archive transient explicitly...")
+            (package-install desc))))
       (dolist (dep dep-syms)
         (unless (package-installed-p dep)
           (message "Installing dependency: %s" dep)
