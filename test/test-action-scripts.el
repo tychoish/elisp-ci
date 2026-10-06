@@ -49,5 +49,32 @@
   (let ((process-environment (cons "ELISP_CI_DEPENDENCIES=transient llama" process-environment)))
     (should (equal (elisp-ci--get-dependencies) '("transient" "llama")))))
 
+(ert-deftest action-scripts/resolve-archive-url-shortcuts ()
+  "Test resolving archive mirror shortcuts and arbitrary URLs."
+  (should (equal (elisp-ci--resolve-archive-url "ustc" elisp-ci--known-gnu-mirrors "https://elpa.gnu.org/packages/")
+                 "https://mirrors.ustc.edu.cn/elpa/gnu/"))
+  (should (equal (elisp-ci--resolve-archive-url "TUNA" elisp-ci--known-gnu-mirrors "https://elpa.gnu.org/packages/")
+                 "https://mirrors.tuna.tsinghua.edu.cn/elpa/gnu/"))
+  (should (equal (elisp-ci--resolve-archive-url "https://custom.org/elpa/" elisp-ci--known-gnu-mirrors "https://elpa.gnu.org/packages/")
+                 "https://custom.org/elpa/"))
+  (should (equal (elisp-ci--resolve-archive-url "" elisp-ci--known-gnu-mirrors "https://elpa.gnu.org/packages/")
+                 "https://elpa.gnu.org/packages/"))
+  (should (equal (elisp-ci--resolve-archive-url nil elisp-ci--known-gnu-mirrors "https://elpa.gnu.org/packages/")
+                 "https://elpa.gnu.org/packages/")))
+
+(ert-deftest action-scripts/configure-archives-gnu-mirror-env ()
+  "Test setting GNU ELPA mirror via environment variable."
+  (let ((process-environment (cons "INPUT_GNU_MIRROR=ustc" process-environment)))
+    (elisp-ci--configure-archives)
+    (should (equal (cdr (assoc "gnu" package-archives)) "https://mirrors.ustc.edu.cn/elpa/gnu/"))))
+
+(ert-deftest action-scripts/configure-archives-custom-key-value ()
+  "Test name=url syntax in archives list."
+  (let ((process-environment (cons "INPUT_ARCHIVES=gnu=https://mirror.example.com/gnu/ melpa" process-environment)))
+    (elisp-ci--configure-archives)
+    (should (equal (cdr (assoc "gnu" package-archives)) "https://mirror.example.com/gnu/"))
+    (should (equal (cdr (assoc "melpa" package-archives)) "https://melpa.org/packages/"))
+    (should (null (assoc "nongnu" package-archives)))))
+
 (provide 'test-action-scripts)
 ;;; test-action-scripts.el ends here

@@ -121,6 +121,28 @@ Resolved from inputs, env vars, Package-Requires headers, and EXTRA-DEPS."
      (message "Note: Could not import ELPAish GPG keyring (%s); using fallback unsigned archive entry."
               (error-message-string err)))))
 
+(defconst elisp-ci--known-gnu-mirrors
+  '(("ustc" . "https://mirrors.ustc.edu.cn/elpa/gnu/")
+    ("tuna" . "https://mirrors.tuna.tsinghua.edu.cn/elpa/gnu/")
+    ("bfsu" . "https://mirrors.bfsu.edu.cn/elpa/gnu/"))
+  "Known mirror mappings for GNU ELPA.")
+
+(defconst elisp-ci--known-nongnu-mirrors
+  '(("ustc" . "https://mirrors.ustc.edu.cn/elpa/nongnu/")
+    ("tuna" . "https://mirrors.tuna.tsinghua.edu.cn/elpa/nongnu/")
+    ("bfsu" . "https://mirrors.bfsu.edu.cn/elpa/nongnu/"))
+  "Known mirror mappings for NonGNU ELPA.")
+
+(defun elisp-ci--resolve-archive-url (mirror-input known-mirrors default-url)
+  "Resolve archive URL from MIRROR-INPUT and KNOWN-MIRRORS, falling back to DEFAULT-URL."
+  (cond
+   ((or (null mirror-input) (string-empty-p (string-trim mirror-input)))
+    default-url)
+   ((assoc (downcase (string-trim mirror-input)) known-mirrors)
+    (cdr (assoc (downcase (string-trim mirror-input)) known-mirrors)))
+   (t
+    (string-trim mirror-input))))
+
 (defun elisp-ci--configure-archives ()
   "Configure package archives and unsigned archives from environment."
   (let* ((archive-env (or (getenv "INPUT_ARCHIVES")
@@ -132,20 +154,40 @@ Resolved from inputs, env vars, Package-Requires headers, and EXTRA-DEPS."
                            (getenv "ELISP_CI_UNSIGNED_ARCHIVES")))
          (unsigned-names (or (and unsigned-env (elisp-ci--parse-list unsigned-env))
                              '("elpaish")))
-         (standard-map '(("gnu" . "https://elpa.gnu.org/packages/")
-                         ("nongnu" . "https://elpa.nongnu.org/nongnu/")
+         (gnu-mirror (or (getenv "INPUT_GNU_MIRROR")
+                         (getenv "ELISP_CI_GNU_MIRROR")
+                         (getenv "ELISP_CI_GNU_URL")
+                         (getenv "GNU_MIRROR")))
+         (nongnu-mirror (or (getenv "INPUT_NONGNU_MIRROR")
+                            (getenv "ELISP_CI_NONGNU_MIRROR")
+                            (getenv "ELISP_CI_NONGNU_URL")
+                            (getenv "NONGNU_MIRROR")))
+         (gnu-url (elisp-ci--resolve-archive-url gnu-mirror
+                                                elisp-ci--known-gnu-mirrors
+                                                "https://elpa.gnu.org/packages/"))
+         (nongnu-url (elisp-ci--resolve-archive-url nongnu-mirror
+                                                   elisp-ci--known-nongnu-mirrors
+                                                   "https://elpa.nongnu.org/nongnu/"))
+         (standard-map `(("gnu" . ,gnu-url)
+                         ("nongnu" . ,nongnu-url)
                          ("melpa" . "https://melpa.org/packages/")
                          ("elpaish" . "https://tychoish.github.io/elpaish/snapshot/"))))
     (setq package-archives
           (delq nil
-                (mapcar (lambda (name)
-                          (if (assoc name standard-map)
-                              (cons name (cdr (assoc name standard-map)))
-                            (message "Warning: unknown standard archive '%s'" name)
-                            nil))
+                (mapcar (lambda (item)
+                          (cond
+                           ((string-match "\\`\\([^=]+\\)=\\(.+\\)\\'" item)
+                            (cons (string-trim (match-string 1 item))
+                                  (string-trim (match-string 2 item))))
+                           ((assoc item standard-map)
+                            (cons item (cdr (assoc item standard-map))))
+                           (t
+                            (message "Warning: unknown standard archive '%s'" item)
+                            nil)))
                         archive-names)))
     (setq package-unsigned-archives unsigned-names)
-    (when (member "elpaish" archive-names)
+    (when (or (assoc "elpaish" package-archives)
+              (member "elpaish" archive-names))
       (elisp-ci--import-elpaish-keyring))
     (message "Configured package-archives: %S" package-archives)
     (message "Configured package-unsigned-archives: %S" package-unsigned-archives)))

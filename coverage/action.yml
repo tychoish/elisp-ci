@@ -40,6 +40,14 @@ inputs:
     required: false
     default: "https://tychoish.github.io/elpaish/elpaish-keyring.gpg"
 
+  gnu-mirror:
+    description: "Custom URL or mirror shortcut (ustc, tuna, bfsu) for GNU ELPA."
+    required: false
+    default: ""
+  nongnu-mirror:
+    description: "Custom URL or mirror shortcut (ustc, tuna, bfsu) for NonGNU ELPA."
+    required: false
+    default: ""
 runs:
   using: "composite"
   steps:
@@ -55,6 +63,8 @@ runs:
         INPUT_ARCHIVES: ${{ inputs.archives }}
         INPUT_UNSIGNED_ARCHIVES: ${{ inputs.unsigned-archives }}
         INPUT_KEYRING_URL: ${{ inputs.keyring-url }}
+        INPUT_GNU_MIRROR: ${{ inputs.gnu-mirror }}
+        INPUT_NONGNU_MIRROR: ${{ inputs.nongnu-mirror }}
       run: |
         SCRIPT_PATH="${{ github.action_path }}/../scripts/run-coverage.el"
         if [ ! -f "$SCRIPT_PATH" ]; then

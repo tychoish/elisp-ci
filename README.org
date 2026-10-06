@@ -94,6 +94,8 @@ Runs ERT or ELPAish test suites with automatic archive, keyring, and dependency 
 | =unsigned-archives=   | ="elpaish"=                                                 | Fallback unsigned archive whitelist (space-delimited string).|
 | =keyring-url=         | ="https://tychoish.github.io/elpaish/elpaish-keyring.gpg"=   | Remote GPG keyring for ELPAish signature verification.        |
 | =runner=              | ="ert"=                                                     | Test runner engine (=ert= or =elpaish=).                     |
+| =gnu-mirror=          | =""=                                                        | Custom URL or mirror shortcut (=ustc=, =tuna=, =bfsu=) for GNU ELPA. |
+| =nongnu-mirror=       | =""=                                                        | Custom URL or mirror shortcut (=ustc=, =tuna=, =bfsu=) for NonGNU ELPA. |
 
 *** Basic Configuration
 
@@ -123,6 +125,8 @@ Runs byte-compilation, =checkdoc=, =package-lint=, and =relint= across source fi
 | =linters=             | ="byte-compile checkdoc"=                                   | Active linters (space-delimited string).                      |
 | =required-linters=    | ="byte-compile checkdoc"=                                   | Linters that block build on failure (space-delimited string).|
 | =fail-on-warning=     | ="true"=                                                    | Treat byte-compiler warnings as fatal errors.                |
+| =gnu-mirror=          | =""=                                                        | Custom URL or mirror shortcut (=ustc=, =tuna=, =bfsu=) for GNU ELPA. |
+| =nongnu-mirror=       | =""=                                                        | Custom URL or mirror shortcut (=ustc=, =tuna=, =bfsu=) for NonGNU ELPA. |
 | =archives=            | ="gnu nongnu melpa elpaish"=                                | Enabled package archives (space-delimited string).           |
 | =unsigned-archives=   | ="elpaish"=                                                 | Fallback unsigned archive whitelist (space-delimited string).|
 | =keyring-url=         | ="https://tychoish.github.io/elpaish/elpaish-keyring.gpg"=   | Remote GPG keyring URL.                                      |
@@ -155,6 +159,8 @@ coverage artifacts, and outputs a formatted markdown summary into
 | =load-paths=          | ="."=                                                       | Directories to prepend to =load-path= (delimited string).     |
 | =report-format=       | ="simplecov"=                                               | Format: =simplecov=, =lcov=, =coveralls=, or =text=.         |
 | =output-file=         | ="coverage.json"=                                           | Target file path for generated coverage data.                |
+| =gnu-mirror=          | =""=                                                        | Custom URL or mirror shortcut (=ustc=, =tuna=, =bfsu=) for GNU ELPA. |
+| =nongnu-mirror=       | =""=                                                        | Custom URL or mirror shortcut (=ustc=, =tuna=, =bfsu=) for NonGNU ELPA. |
 | =archives=            | ="gnu nongnu melpa elpaish"=                                | Enabled package archives (space-delimited string).           |
 | =unsigned-archives=   | ="elpaish"=                                                 | Fallback unsigned archive whitelist (space-delimited string).|
 | =keyring-url=         | ="https://tychoish.github.io/elpaish/elpaish-keyring.gpg"=   | Remote GPG keyring URL.                                      |
