@@ -133,6 +133,11 @@ Resolved from inputs, env vars, Package-Requires headers, and EXTRA-DEPS."
     ("bfsu" . "https://mirrors.bfsu.edu.cn/elpa/nongnu/"))
   "Known mirror mappings for NonGNU ELPA.")
 
+(defun elisp-ci--getenv-nonempty (name)
+  "Return trimmed value of environment variable NAME if set and non-empty, else nil."
+  (let ((val (getenv name)))
+    (and val (not (string-empty-p (string-trim val))) (string-trim val))))
+
 (defun elisp-ci--resolve-archive-url (mirror-input known-mirrors default-url)
   "Resolve archive URL from MIRROR-INPUT and KNOWN-MIRRORS, falling back to DEFAULT-URL."
   (cond
@@ -145,24 +150,24 @@ Resolved from inputs, env vars, Package-Requires headers, and EXTRA-DEPS."
 
 (defun elisp-ci--configure-archives ()
   "Configure package archives and unsigned archives from environment."
-  (let* ((archive-env (or (getenv "INPUT_ARCHIVES")
-                          (getenv "ELISP_CI_ARCHIVES")
-                          (getenv "ELISP_ARCHIVES")))
+  (let* ((archive-env (or (elisp-ci--getenv-nonempty "INPUT_ARCHIVES")
+                          (elisp-ci--getenv-nonempty "ELISP_CI_ARCHIVES")
+                          (elisp-ci--getenv-nonempty "ELISP_ARCHIVES")))
          (archive-names (or (and archive-env (elisp-ci--parse-list archive-env))
                             '("gnu" "nongnu" "melpa" "elpaish")))
-         (unsigned-env (or (getenv "INPUT_UNSIGNED_ARCHIVES")
-                           (getenv "ELISP_CI_UNSIGNED_ARCHIVES")))
+         (unsigned-env (or (elisp-ci--getenv-nonempty "INPUT_UNSIGNED_ARCHIVES")
+                           (elisp-ci--getenv-nonempty "ELISP_CI_UNSIGNED_ARCHIVES")))
          (unsigned-names (or (and unsigned-env (elisp-ci--parse-list unsigned-env))
                              '("elpaish")))
-         (gnu-mirror (or (getenv "INPUT_GNU_MIRROR")
-                         (getenv "ELISP_CI_GNU_MIRROR")
-                         (getenv "ELISP_CI_GNU_URL")
-                         (getenv "GNU_MIRROR")))
-         (nongnu-mirror (or (getenv "INPUT_NONGNU_MIRROR")
-                            (getenv "ELISP_CI_NONGNU_MIRROR")
-                            (getenv "ELISP_CI_NONGNU_URL")
-                            (getenv "NONGNU_MIRROR")))
-         (gnu-url (elisp-ci--resolve-archive-url gnu-mirror
+         (gnu-mirror (or (elisp-ci--getenv-nonempty "INPUT_GNU_MIRROR")
+                         (elisp-ci--getenv-nonempty "ELISP_CI_GNU_MIRROR")
+                         (elisp-ci--getenv-nonempty "ELISP_CI_GNU_URL")
+                         (elisp-ci--getenv-nonempty "GNU_MIRROR")))
+         (nongnu-mirror (or (elisp-ci--getenv-nonempty "INPUT_NONGNU_MIRROR")
+                            (elisp-ci--getenv-nonempty "ELISP_CI_NONGNU_MIRROR")
+                            (elisp-ci--getenv-nonempty "ELISP_CI_NONGNU_URL")
+                            (elisp-ci--getenv-nonempty "NONGNU_MIRROR")))
+                  (gnu-url (elisp-ci--resolve-archive-url gnu-mirror
                                                 elisp-ci--known-gnu-mirrors
                                                 "https://elpa.gnu.org/packages/"))
          (nongnu-url (elisp-ci--resolve-archive-url nongnu-mirror

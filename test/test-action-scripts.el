@@ -76,5 +76,12 @@
     (should (equal (cdr (assoc "melpa" package-archives)) "https://melpa.org/packages/"))
     (should (null (assoc "nongnu" package-archives)))))
 
+(ert-deftest action-scripts/configure-archives-empty-input-falls-back-to-job-env ()
+  "Test that empty INPUT_GNU_MIRROR falls back to ELISP_CI_GNU_MIRROR."
+  (let ((process-environment (cons "INPUT_GNU_MIRROR="
+                                   (cons "ELISP_CI_GNU_MIRROR=ustc" process-environment))))
+    (elisp-ci--configure-archives)
+    (should (equal (cdr (assoc "gnu" package-archives)) "https://mirrors.ustc.edu.cn/elpa/gnu/"))))
+
 (provide 'test-action-scripts)
 ;;; test-action-scripts.el ends here
