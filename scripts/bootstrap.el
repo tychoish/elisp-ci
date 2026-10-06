@@ -134,12 +134,13 @@ Resolved from inputs, env vars, Package-Requires headers, and EXTRA-DEPS."
   "Known mirror mappings for NonGNU ELPA.")
 
 (defun elisp-ci--getenv-nonempty (name)
-  "Return trimmed value of environment variable NAME if set and non-empty, else nil."
+  "Return trimmed value of environment variable NAME if non-empty, else nil."
   (let ((val (getenv name)))
     (and val (not (string-empty-p (string-trim val))) (string-trim val))))
 
 (defun elisp-ci--resolve-archive-url (mirror-input known-mirrors default-url)
-  "Resolve archive URL from MIRROR-INPUT and KNOWN-MIRRORS, falling back to DEFAULT-URL."
+  "Resolve archive URL from MIRROR-INPUT and KNOWN-MIRRORS.
+Fall back to DEFAULT-URL when MIRROR-INPUT is unset or empty."
   (cond
    ((or (null mirror-input) (string-empty-p (string-trim mirror-input)))
     default-url)
@@ -167,9 +168,9 @@ Resolved from inputs, env vars, Package-Requires headers, and EXTRA-DEPS."
                             (elisp-ci--getenv-nonempty "ELISP_CI_NONGNU_MIRROR")
                             (elisp-ci--getenv-nonempty "ELISP_CI_NONGNU_URL")
                             (elisp-ci--getenv-nonempty "NONGNU_MIRROR")))
-                  (gnu-url (elisp-ci--resolve-archive-url gnu-mirror
-                                                elisp-ci--known-gnu-mirrors
-                                                "https://elpa.gnu.org/packages/"))
+         (gnu-url (elisp-ci--resolve-archive-url gnu-mirror
+                                                 elisp-ci--known-gnu-mirrors
+                                                 "https://elpa.gnu.org/packages/"))
          (nongnu-url (elisp-ci--resolve-archive-url nongnu-mirror
                                                    elisp-ci--known-nongnu-mirrors
                                                    "https://elpa.nongnu.org/nongnu/"))
