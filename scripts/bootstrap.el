@@ -121,16 +121,36 @@ Resolved from inputs, env vars, Package-Requires headers, and EXTRA-DEPS."
      (message "Note: Could not import ELPAish GPG keyring (%s); using fallback unsigned archive entry."
               (error-message-string err)))))
 
+(defconst elisp-ci--upstream-gnu-url "https://elpa.gnu.org/packages/"
+  "Canonical upstream URL for GNU ELPA.")
+
+(defconst elisp-ci--upstream-nongnu-url "https://elpa.nongnu.org/nongnu/"
+  "Canonical upstream URL for NonGNU ELPA.")
+
+(defconst elisp-ci--default-gnu-mirror-url "https://mirrors.ustc.edu.cn/elpa/gnu/"
+  "Default fallback mirror URL for GNU ELPA.")
+
+(defconst elisp-ci--default-nongnu-mirror-url "https://mirrors.ustc.edu.cn/elpa/nongnu/"
+  "Default fallback mirror URL for NonGNU ELPA.")
+
 (defconst elisp-ci--known-gnu-mirrors
-  '(("ustc" . "https://mirrors.ustc.edu.cn/elpa/gnu/")
+  `(("ustc" . ,elisp-ci--default-gnu-mirror-url)
     ("tuna" . "https://mirrors.tuna.tsinghua.edu.cn/elpa/gnu/")
-    ("bfsu" . "https://mirrors.bfsu.edu.cn/elpa/gnu/"))
+    ("bfsu" . "https://mirrors.bfsu.edu.cn/elpa/gnu/")
+    ("upstream" . ,elisp-ci--upstream-gnu-url)
+    ("none" . ,elisp-ci--upstream-gnu-url)
+    ("false" . ,elisp-ci--upstream-gnu-url)
+    ("off" . ,elisp-ci--upstream-gnu-url))
   "Known mirror mappings for GNU ELPA.")
 
 (defconst elisp-ci--known-nongnu-mirrors
-  '(("ustc" . "https://mirrors.ustc.edu.cn/elpa/nongnu/")
+  `(("ustc" . ,elisp-ci--default-nongnu-mirror-url)
     ("tuna" . "https://mirrors.tuna.tsinghua.edu.cn/elpa/nongnu/")
-    ("bfsu" . "https://mirrors.bfsu.edu.cn/elpa/nongnu/"))
+    ("bfsu" . "https://mirrors.bfsu.edu.cn/elpa/nongnu/")
+    ("upstream" . ,elisp-ci--upstream-nongnu-url)
+    ("none" . ,elisp-ci--upstream-nongnu-url)
+    ("false" . ,elisp-ci--upstream-nongnu-url)
+    ("off" . ,elisp-ci--upstream-nongnu-url))
   "Known mirror mappings for NonGNU ELPA.")
 
 (defun elisp-ci--getenv-nonempty (name)
@@ -138,16 +158,29 @@ Resolved from inputs, env vars, Package-Requires headers, and EXTRA-DEPS."
   (let ((val (getenv name)))
     (and val (not (string-empty-p (string-trim val))) (string-trim val))))
 
-(defun elisp-ci--resolve-archive-url (mirror-input known-mirrors default-url)
+(defun elisp-ci--fallback-mirrors-enabled-p ()
+  "Return non-nil if archive fallback mirrors are enabled by default."
+  (let ((val (or (elisp-ci--getenv-nonempty "INPUT_FALLBACK_MIRRORS")
+                 (elisp-ci--getenv-nonempty "ELISP_CI_FALLBACK_MIRRORS")
+                 (elisp-ci--getenv-nonempty "ELISP_FALLBACK_MIRRORS")
+                 (elisp-ci--getenv-nonempty "FALLBACK_MIRRORS")
+                 "true")))
+    (not (member (downcase (string-trim val)) '("false" "off" "no" "0" "none")))))
+
+(defun elisp-ci--resolve-archive-url (mirror-input known-mirrors default-mirror-url upstream-url)
   "Resolve archive URL from MIRROR-INPUT and KNOWN-MIRRORS.
-Fall back to DEFAULT-URL when MIRROR-INPUT is unset or empty."
-  (cond
-   ((or (null mirror-input) (string-empty-p (string-trim mirror-input)))
-    default-url)
-   ((assoc (downcase (string-trim mirror-input)) known-mirrors)
-    (cdr (assoc (downcase (string-trim mirror-input)) known-mirrors)))
-   (t
-    (string-trim mirror-input))))
+When MIRROR-INPUT is unset or empty, use DEFAULT-MIRROR-URL if fallback mirrors
+are enabled, otherwise UPSTREAM-URL."
+  (let ((effective-default (if (elisp-ci--fallback-mirrors-enabled-p)
+                               default-mirror-url
+                             upstream-url)))
+    (cond
+     ((or (null mirror-input) (string-empty-p (string-trim mirror-input)))
+      effective-default)
+     ((assoc (downcase (string-trim mirror-input)) known-mirrors)
+      (cdr (assoc (downcase (string-trim mirror-input)) known-mirrors)))
+     (t
+      (string-trim mirror-input)))))
 
 (defun elisp-ci--configure-archives ()
   "Configure package archives and unsigned archives from environment."
@@ -170,10 +203,12 @@ Fall back to DEFAULT-URL when MIRROR-INPUT is unset or empty."
                             (elisp-ci--getenv-nonempty "NONGNU_MIRROR")))
          (gnu-url (elisp-ci--resolve-archive-url gnu-mirror
                                                  elisp-ci--known-gnu-mirrors
-                                                 "https://elpa.gnu.org/packages/"))
+                                                 elisp-ci--default-gnu-mirror-url
+                                                 elisp-ci--upstream-gnu-url))
          (nongnu-url (elisp-ci--resolve-archive-url nongnu-mirror
                                                    elisp-ci--known-nongnu-mirrors
-                                                   "https://elpa.nongnu.org/nongnu/"))
+                                                   elisp-ci--default-nongnu-mirror-url
+                                                   elisp-ci--upstream-nongnu-url))
          (standard-map `(("gnu" . ,gnu-url)
                          ("nongnu" . ,nongnu-url)
                          ("melpa" . "https://melpa.org/packages/")

@@ -51,16 +51,42 @@
 
 (ert-deftest action-scripts/resolve-archive-url-shortcuts ()
   "Test resolving archive mirror shortcuts and arbitrary URLs."
-  (should (equal (elisp-ci--resolve-archive-url "ustc" elisp-ci--known-gnu-mirrors "https://elpa.gnu.org/packages/")
+  (should (equal (elisp-ci--resolve-archive-url "ustc" elisp-ci--known-gnu-mirrors
+                                                elisp-ci--default-gnu-mirror-url
+                                                elisp-ci--upstream-gnu-url)
                  "https://mirrors.ustc.edu.cn/elpa/gnu/"))
-  (should (equal (elisp-ci--resolve-archive-url "TUNA" elisp-ci--known-gnu-mirrors "https://elpa.gnu.org/packages/")
+  (should (equal (elisp-ci--resolve-archive-url "TUNA" elisp-ci--known-gnu-mirrors
+                                                elisp-ci--default-gnu-mirror-url
+                                                elisp-ci--upstream-gnu-url)
                  "https://mirrors.tuna.tsinghua.edu.cn/elpa/gnu/"))
-  (should (equal (elisp-ci--resolve-archive-url "https://custom.org/elpa/" elisp-ci--known-gnu-mirrors "https://elpa.gnu.org/packages/")
+  (should (equal (elisp-ci--resolve-archive-url "https://custom.org/elpa/" elisp-ci--known-gnu-mirrors
+                                                elisp-ci--default-gnu-mirror-url
+                                                elisp-ci--upstream-gnu-url)
                  "https://custom.org/elpa/"))
-  (should (equal (elisp-ci--resolve-archive-url "" elisp-ci--known-gnu-mirrors "https://elpa.gnu.org/packages/")
+  ;; Default fallback mirror resolution when unset or empty
+  (should (equal (elisp-ci--resolve-archive-url "" elisp-ci--known-gnu-mirrors
+                                                elisp-ci--default-gnu-mirror-url
+                                                elisp-ci--upstream-gnu-url)
+                 "https://mirrors.ustc.edu.cn/elpa/gnu/"))
+  (should (equal (elisp-ci--resolve-archive-url nil elisp-ci--known-gnu-mirrors
+                                                elisp-ci--default-gnu-mirror-url
+                                                elisp-ci--upstream-gnu-url)
+                 "https://mirrors.ustc.edu.cn/elpa/gnu/"))
+  ;; Explicit opt-outs via keyword
+  (should (equal (elisp-ci--resolve-archive-url "upstream" elisp-ci--known-gnu-mirrors
+                                                elisp-ci--default-gnu-mirror-url
+                                                elisp-ci--upstream-gnu-url)
                  "https://elpa.gnu.org/packages/"))
-  (should (equal (elisp-ci--resolve-archive-url nil elisp-ci--known-gnu-mirrors "https://elpa.gnu.org/packages/")
-                 "https://elpa.gnu.org/packages/")))
+  (should (equal (elisp-ci--resolve-archive-url "none" elisp-ci--known-gnu-mirrors
+                                                elisp-ci--default-gnu-mirror-url
+                                                elisp-ci--upstream-gnu-url)
+                 "https://elpa.gnu.org/packages/"))
+  ;; Global opt-out via INPUT_FALLBACK_MIRRORS=false
+  (let ((process-environment (cons "INPUT_FALLBACK_MIRRORS=false" process-environment)))
+    (should (equal (elisp-ci--resolve-archive-url nil elisp-ci--known-gnu-mirrors
+                                                  elisp-ci--default-gnu-mirror-url
+                                                  elisp-ci--upstream-gnu-url)
+                   "https://elpa.gnu.org/packages/"))))
 
 (ert-deftest action-scripts/configure-archives-gnu-mirror-env ()
   "Test setting GNU ELPA mirror via environment variable."

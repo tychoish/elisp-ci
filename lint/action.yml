@@ -40,8 +40,13 @@ inputs:
     required: false
     default: "https://tychoish.github.io/elpaish/elpaish-keyring.gpg"
 
+  fallback-mirrors:
+    description: "Use fallback mirrors (e.g. USTC) for GNU and NonGNU ELPA by default (true/false)."
+    required: false
+    default: "true"
+
   gnu-mirror:
-    description: "Custom URL or mirror shortcut (ustc, tuna, bfsu) for GNU ELPA."
+    description: "Custom URL or mirror shortcut (ustc, tuna, bfsu, upstream, none) for GNU ELPA."
     required: false
     default: ""
   nongnu-mirror:
@@ -63,6 +68,7 @@ runs:
         INPUT_ARCHIVES: ${{ inputs.archives }}
         INPUT_UNSIGNED_ARCHIVES: ${{ inputs.unsigned-archives }}
         INPUT_KEYRING_URL: ${{ inputs.keyring-url }}
+        INPUT_FALLBACK_MIRRORS: ${{ inputs.fallback-mirrors }}
         INPUT_GNU_MIRROR: ${{ inputs.gnu-mirror }}
         INPUT_NONGNU_MIRROR: ${{ inputs.nongnu-mirror }}
       run: |
