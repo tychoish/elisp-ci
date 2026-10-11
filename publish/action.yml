@@ -1,0 +1,57 @@
+name: "Publish ELPA Repository"
+description: "Build and publish an ELPA package repository using the ELPAish toolkit."
+author: "sam kleinman <sam@tychoish.com>"
+
+inputs:
+  packages-file:
+    description: "Path to packages definition file (default: packages.el)."
+    required: false
+    default: "packages.el"
+  output-dir:
+    description: "Directory where the ELPA archive and static site will be written."
+    required: false
+    default: "public/"
+  streams:
+    description: "Space-separated list of streams to generate (e.g. 'all', or 'snapshot stable staging')."
+    required: false
+    default: "all"
+  signing-key:
+    description: "GPG private key content for archive signing (optional)."
+    required: false
+    default: ""
+  gpg-passphrase:
+    description: "GPG passphrase for archive signing (optional)."
+    required: false
+    default: ""
+  cache:
+    description: "Enable dependency caching (true/false)."
+    required: false
+    default: "true"
+  cache-dir:
+    description: "Directory for caching installed ELPA dependencies."
+    required: false
+    default: "elpa-ci"
+  preflight:
+    description: "Run preflight lint/compile quality checks before publishing (0 or 1)."
+    required: false
+    default: "0"
+  upload-pages-artifact:
+    description: "Automatically upload output-dir as a GitHub Pages artifact (true/false)."
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Delegate to ELPAish Builder Action
+      uses: tychoish/elpaish@main
+      with:
+        packages-file: ${{ inputs.packages-file }}
+        output-dir: ${{ inputs.output-dir }}
+        streams: ${{ inputs.streams }}
+        signing-key: ${{ inputs.signing-key }}
+        gpg-passphrase: ${{ inputs.gpg-passphrase }}
+        cache: ${{ inputs.cache }}
+        cache-dir: ${{ inputs.cache-dir }}
+        preflight: ${{ inputs.preflight }}
+        upload-pages-artifact: ${{ inputs.upload-pages-artifact }}
