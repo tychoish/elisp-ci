@@ -1,0 +1,267 @@
+#+TITLE:      Add Caching to GitHub Action for Package Archives
+#+DATE:       [2026-10-11 Sun 10:24]
+#+FILETAGS:   :caching:ci:github:emacs:
+#+IDENTIFIER: 20261011T102429
+#+SIGNATURE:  7a1a
+
+* Context & Motivation
+:PROPERTIES:
+:CUSTOM_ID: context-and-motivation
+:END:
+
+In =elisp-ci=, every workflow job (matrixed across Emacs 29.4, 30.2, and 31.1)
+executes up to three consecutive composite actions:
+1. =tychoish/elisp-ci@main= (test runner)
+2. =tychoish/elisp-ci/lint@main= (linter)
+3. =tychoish/elisp-ci/coverage@main= (coverage runner)
+
+Currently, each action and job runs in a clean container or runner environment.
+Before executing tests or linters, =scripts/bootstrap.el= initializes
+=package.el=, downloads the ELPAish GPG keyring over HTTPS, contacts package
+archives (GNU ELPA, NonGNU ELPA, MELPA, and ELPAish), downloads archive index
+metadata (=archive-contents=), and fetches/compiles each required ELPA package.
+
+** The Bottlenecks
+- *MELPA =archive-contents= payload*: MELPA's archive index is over 3 MB of
+  uncompressed Lisp expressions. Fetching, parsing, and interning this index on
+  every job adds 3–8 seconds per matrix job.
+- *Redundant package downloads*: Packages like =undercover=, =shut-up=,
+  =package-lint=, and common libraries (=compat=, =transient=) are downloaded
+  and byte-compiled on every workflow trigger.
+- *Network flakiness*: External ELPA/MELPA mirrors occasionally throttle, lag,
+  or experience intermittent HTTP failures, causing spurious CI red lights.
+- *Cumulative overhead*: With 3 Emacs versions in the matrix and 3 steps per job,
+  repeated dependency downloading accounts for the majority of execution time
+  in short-running test suites.
+
+Adding caching via GitHub Actions will reduce warm CI run times from ~30–45s
+down to ~5–10s per job.
+
+* Architecture & Caching Design
+:PROPERTIES:
+:CUSTOM_ID: architecture-and-caching-design
+:END:
+
+** Cache Granularity: =cache= (All) vs =cache-elpa=
+Workflows need both coarse-grained "just make it fast" toggles and fine-grained
+switches for specific caching domains:
+
+- *=cache=* (master / all toggle):
+  Enables all caching mechanisms (ELPA packages, archive metadata, and GPG keyrings).
+  Default: =true= (or ="all"=).
+- *=cache-elpa=* (also accepting =cache_elpa=):
+  Specifically controls caching of =package-user-dir= (installed ELPA packages
+  and =archives/*/archive-contents=). Allows users to isolate ELPA caching or
+  disable package persistence while preserving other caches. Default: follows =cache=.
+- *=cache-dir=*:
+  Path to store cached packages and keyrings. Defaults to =~/.emacs.d/elpa=
+  (or workspace =.cache/elpa= for container portability).
+- *=cache-key=*:
+  Optional user-specified custom salt or version string to explicitly bust caches
+  (e.g., =cache-key: "v2"=).
+
+All options can be supplied via action inputs (=with: cache: ...=) or workflow/job
+environment variables (=ELISP_CI_CACHE=, =ELISP_CI_CACHE_ELPA=, =ELISP_CI_CACHE_DIR=,
+=ELISP_CI_CACHE_KEY=).
+
+** Avoiding Thrashing: Why NOT Hash =**/*.el= Source Files
+Hashing all =**/*.el= source files is actively harmful for caching:
+1. *Constant Cache Misses*: Any change to application logic, docstrings, formatting,
+   or tests modifies the hash of =**/*.el=. A developer pushing 5 commits to a PR
+   would miss the cache on every commit.
+2. *Cache Thrashing & Eviction*: GitHub Actions maintains a 10 GB per-repository
+   cache limit. Saving multi-megabyte package caches on every single commit would
+   rapidly evict caches from other branches and matrix jobs.
+
+** Stable Cache Key Generation
+The cache key should only change when *dependencies* or *upstream archive state*
+change:
+
+#+begin_example
+Primary Cache Key:
+  elisp-ci-${{ runner.os }}-emacs-${{ matrix.emacs-version }}-${{ env.DEP_HASH }}-${{ env.TIME_EPOCH }}
+
+Restore Keys:
+  elisp-ci-${{ runner.os }}-emacs-${{ matrix.emacs-version }}-${{ env.DEP_HASH }}-
+  elisp-ci-${{ runner.os }}-emacs-${{ matrix.emacs-version }}-
+#+end_example
+
+Where:
+1. *Emacs Version*:
+   =${{ matrix.emacs-version }}= (e.g. =30.2=). Required because byte-compiled
+   =.elc= binaries are incompatible across major Emacs releases.
+2. *=DEP_HASH= (Dependency Hash)*:
+   A deterministic hash computed *only* from declared dependencies, not source code:
+   - Hash of explicit inputs: =INPUT_DEPENDENCIES=, =ELISP_CI_DEPENDENCIES=, =INPUT_ARCHIVES=.
+   - Hash of manifest files if present: =Cask=, =Eldev=, =Eask=, =*-pkg.el=.
+   - Hash of extracted =;;; Package-Requires:= lines from source files:
+     #+begin_src bash
+     grep -h -E '^[;[:space:]]*Package-Requires:' *.el 2>/dev/null | sort | sha256sum | cut -d' ' -f1
+     #+end_src
+   Editing function bodies, comments, or tests leaves =DEP_HASH= unchanged,
+   guaranteeing a 100% cache hit!
+3. *=TIME_EPOCH= (Rolling Window)*:
+   Because MELPA is a rolling snapshot without immutable release tags, packages
+   can update upstream even if project requirements don't change.
+   A weekly or bi-weekly rolling key (e.g., =date +%Y-w%V= or =date +%Y-%m=)
+   allows cache updates on a predictable cadence without thrashing on every commit.
+4. *Restore Keys Hierarchy*:
+   - If =TIME_EPOCH= rolls over, the fallback key matches the previous week's
+     =DEP_HASH=, avoiding a cold start.
+   - If a new dependency is added (modifying =DEP_HASH=), the fallback key
+     restores existing packages and archive indices. =package.el= then only needs
+     to download the single newly-added package instead of everything.
+
+* Implementation Details
+:PROPERTIES:
+:CUSTOM_ID: implementation-details
+:END:
+
+** 1. Script Bootstrap Optimizations (=scripts/bootstrap.el=)
+- *Configurable =package-user-dir=*:
+  #+begin_src elisp
+  (let ((custom-dir (or (elisp-ci--getenv-nonempty "INPUT_CACHE_DIR")
+                        (elisp-ci--getenv-nonempty "ELISP_CI_CACHE_DIR"))))
+    (when custom-dir
+      (setq package-user-dir (expand-file-name custom-dir))
+      (message "Configured package-user-dir: %s" package-user-dir)))
+  #+end_src
+
+- *Smart Archive Refresh (Bypass MELPA Network Requests)*:
+  When the cache is restored, =package-initialize= reads existing archive indices
+  into =package-archive-contents=.
+  Check if all required dependencies exist in =package-archive-contents=:
+  #+begin_src elisp
+  (let* ((dep-strs (elisp-ci--get-dependencies extra-deps))
+         (dep-syms (delete-dups (mapcar #'intern dep-strs)))
+         (missing (seq-filter (lambda (d) (not (assq d package-archive-contents)))
+                              dep-syms)))
+    (when (or (null package-archive-contents) missing)
+      (message "Refreshing archive contents (missing or uninitialized: %S)..." missing)
+      (package-refresh-contents)))
+  #+end_src
+  If all packages are already in the restored cache, =package-refresh-contents=
+  is skipped completely, saving 3–8 seconds and zero HTTP requests.
+
+- *Keyring Caching*:
+  Store =elpaish-keyring.gpg= inside =package-user-dir=. If the file already exists
+  and is non-empty, import it directly into package GnuPG without re-fetching
+  over the network.
+
+** 2. Dedicated Composite Action (=cache/action.yml=)
+Introduce =tychoish/elisp-ci/cache@main= with clear input options:
+
+#+begin_src yaml
+name: "Emacs Lisp Dependency Cache"
+description: "Restore and save cached Emacs ELPA/MELPA packages and archive metadata."
+
+inputs:
+  cache:
+    description: "Enable caching (true/false, or 'all')."
+    required: false
+    default: "true"
+  cache-elpa:
+    description: "Enable ELPA package and archive metadata caching (true/false)."
+    required: false
+    default: "true"
+  cache-dir:
+    description: "Directory for cached packages and metadata."
+    required: false
+    default: "~/.emacs.d/elpa"
+  cache-key:
+    description: "Custom cache key salt to force cache rotation."
+    required: false
+    default: ""
+  emacs-version:
+    description: "Emacs version string (e.g. 29.4, 30.2, 31.1)."
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Compute Stable Cache Keys
+      id: keys
+      if: inputs.cache != 'false' && inputs.cache-elpa != 'false'
+      shell: bash
+      run: |
+        # 1. Resolve Emacs version
+        if [ -n "${{ inputs.emacs-version }}" ]; then
+          VER="${{ inputs.emacs-version }}"
+        else
+          VER=$(emacs --version 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n1 || echo "unknown")
+        fi
+
+        # 2. Compute stable dependency hash (Package-Requires + manifest + env vars)
+        DEP_INPUTS="${{ inputs.dependencies }}${{ env.ELISP_CI_DEPENDENCIES }}${{ env.INPUT_DEPENDENCIES }}"
+        PKG_HEADERS=$(grep -h -E '^[;[:space:]]*Package-Requires:' *.el 2>/dev/null | sort || true)
+        MANIFESTS=$(ls Cask Eldev Eask *-pkg.el 2>/dev/null || true)
+        MANIFEST_CONTENT=""
+        if [ -n "$MANIFESTS" ]; then
+          MANIFEST_CONTENT=$(cat $MANIFESTS 2>/dev/null || true)
+        fi
+
+        DEP_HASH=$(printf "%s\n%s\n%s" "$DEP_INPUTS" "$PKG_HEADERS" "$MANIFEST_CONTENT" | sha256sum | cut -c1-16)
+
+        # 3. Rolling epoch (weekly window to avoid thrashing while catching MELPA updates)
+        EPOCH=$(date +'%Y-w%V')
+
+        SALT="${{ inputs.cache-key }}"
+        if [ -n "$SALT" ]; then
+          PREFIX="elisp-ci-${SALT}-${RUNNER_OS}-emacs-${VER}"
+        else
+          PREFIX="elisp-ci-${RUNNER_OS}-emacs-${VER}"
+        fi
+
+        echo "primary-key=${PREFIX}-${DEP_HASH}-${EPOCH}" >> "$GITHUB_OUTPUT"
+        echo "restore-key-dep=${PREFIX}-${DEP_HASH}-" >> "$GITHUB_OUTPUT"
+        echo "restore-key-prefix=${PREFIX}-" >> "$GITHUB_OUTPUT"
+
+    - name: Restore / Save ELPA Cache
+      if: inputs.cache != 'false' && inputs.cache-elpa != 'false'
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.cache-dir }}
+        key: ${{ steps.keys.outputs.primary-key }}
+        restore-keys: |
+          ${{ steps.keys.outputs.restore-key-dep }}
+          ${{ steps.keys.outputs.restore-key-prefix }}
+#+end_src
+
+** 3. Integrated Options in Existing Composite Actions
+Add =cache= and =cache-elpa= (with =cache_elpa= aliases) to:
+- =action.yml= (Test Runner)
+- =lint/action.yml= (Linter)
+- =coverage/action.yml= (Coverage Runner)
+
+This allows users to either:
+1. Simply pass =cache: true= to the main action.
+2. Or use the standalone =./cache= step at the beginning of their job.
+
+* Verification & Test Strategy
+:PROPERTIES:
+:CUSTOM_ID: verification-and-test-strategy
+:END:
+
+1. *Unit Tests in =test/test-action-scripts.el=*:
+   - Test =elisp-ci--install-dependencies= when =package-archive-contents= is pre-seeded.
+   - Verify that =package-refresh-contents= is *not* called when all dependencies are present.
+   - Verify that =INPUT_CACHE_DIR= correctly relocates =package-user-dir=.
+2. *Local Benchmark*:
+   - Compare batch execution with empty cache vs warm cache:
+     - Cold run: ~8-12 seconds (MELPA index download + package fetch).
+     - Warm run: < 1 second.
+3. *GitHub Actions Pipeline Validation*:
+   - Commit 1 (Cold Cache): Cache miss, dependencies installed, cache saved.
+   - Commit 2 (Code change to a =.el= file): Primary key still hits! Cache hit confirmed (no download from MELPA).
+   - Commit 3 (Add new package to =Package-Requires=): Primary key misses, restore key hits, only new dependency downloaded.
+
+* Series & Cross-References
+:PROPERTIES:
+:CUSTOM_ID: series-and-cross-references
+:END:
+
+- Series: =7a1a= (Emacs CI Infrastructure > Archive & Dependency Caching)
+- Related:
+  - =7a1= Dependency Resolution & Archive Mirroring
+  - =7a= Composite Action Architecture for Emacs Lisp CI
