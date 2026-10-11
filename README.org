@@ -20,15 +20,21 @@ workflows by encapsulating:
   dependencies before linting, testing, and coverage measurement. No manual
   dependency lists required in standard setups.
 
+- *Stable Dependency & Archive Caching*: Caches installed packages and archive
+  index metadata (=archive-contents=) across runs using stable dependency
+  hashes (extracting =Package-Requires= and manifests rather than hashing source
+  code) and weekly rolling epochs. Eliminates repetitive multi-megabyte MELPA
+  downloads and slashes warm CI runtimes.
+
 - *Single-Location Dependency & Option Configuration*: If extra dependencies or
   custom paths are needed, they can be declared once at the workflow or job level
   using environment variables (=ELISP_CI_DEPENDENCIES=, =ELISP_CI_LOAD_PATHS=,
-  =ELISP_CI_ARCHIVES=) instead of duplicating them across every step.
+  =ELISP_CI_ARCHIVES=, =ELISP_CI_CACHE=) instead of duplicating them across every step.
 
 - *Automatic GPG Keyring & Archive Setup*: Preconfigures GNU ELPA, NonGNU ELPA,
   MELPA, and ELPAish snapshot archives. Automatically fetches and imports the
   ELPAish GPG public keyring for cryptographic signature validation, with
-  seamless unsigned archive fallback.
+  seamless unsigned archive fallback and cached keyring reuse.
 
 - *Configurable Quality Linters*: Byte-compilation (with warnings-as-errors),
   =checkdoc= docstring linting, =package-lint=, and =relint= with granular
@@ -55,7 +61,7 @@ workflows by encapsulating:
    =*.el= files, filters out Emacs built-ins, and installs required packages.
 
 #+begin_src yaml
-# Example: Setting dependencies once at the job level
+# Example: Setting dependencies and caching once at the job level
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -64,6 +70,9 @@ jobs:
       ELISP_CI_DEPENDENCIES: "compat transient"
     steps:
       - uses: actions/checkout@v5
+      - uses: tychoish/elisp-ci/cache@main
+        with:
+          emacs-version: ${{ matrix.emacs-version }}
       - uses: tychoish/elisp-ci/lint@main
       - uses: tychoish/elisp-ci@main
       - uses: tychoish/elisp-ci/coverage@main
@@ -73,6 +82,38 @@ jobs:
 :PROPERTIES:
 :CUSTOM_ID: actions
 :END:
+
+** Dependency Cache
+:PROPERTIES:
+:CUSTOM_ID: dependency-cache
+:END:
+
+Restores and saves cached Emacs ELPA/MELPA packages, archive metadata, and GPG keyrings.
+
+*Action reference*: =tychoish/elisp-ci/cache@main=
+
+*** Options
+
+| Input           | Default             | Description                                                  |
+|-----------------+---------------------+--------------------------------------------------------------|
+| =cache=         | ="true"=          | Master switch for caching (true/false, or 'all').            |
+| =cache-elpa=    | ="true"=          | Specifically toggle ELPA package and archive cache.          |
+| =cache-dir=     | ="~/.emacs.d/elpa"= | Directory for cached packages and metadata.                |
+| =cache-key=     | =""=              | Custom cache key salt for manual cache rotation.             |
+| =emacs-version= | =""= (detected)   | Emacs version string (e.g. =29.4=, =30.2=).                  |
+| =dependencies=  | =""=              | Extra dependencies to include in cache key hash.             |
+
+*** Stable Key Strategy
+Unlike naive caches that hash all =**/*.el= files (causing cache misses on every
+code edit and thrashing repository cache limits), =tychoish/elisp-ci/cache=
+computes cache keys using:
+1. *Emacs Version*: Scoped per major/minor release to prevent bytecode incompatibilities.
+2. *Dependency Definitions*: Only hashes =Package-Requires:= headers, manifest files
+   (=Cask=, =Eldev=, =Eask=, =*-pkg.el=), and explicit input/environment dependencies.
+3. *Weekly Rolling Epoch*: Updates rolling MELPA snapshots on a scheduled cadence
+   without thrashing on consecutive commits.
+4. *Multi-Tier Restore Keys*: Falls back to the latest warm cache on dependency additions,
+   so only newly added packages need to be downloaded.
 
 ** Test Runner
 :PROPERTIES:
@@ -96,6 +137,11 @@ Runs ERT or ELPAish test suites with automatic archive, keyring, and dependency 
 | =runner=              | ="ert"=                                                     | Test runner engine (=ert= or =elpaish=).                     |
 | =gnu-mirror=          | =""=                                                        | Custom URL or mirror shortcut (=ustc=, =tuna=, =bfsu=) for GNU ELPA. |
 | =nongnu-mirror=       | =""=                                                        | Custom URL or mirror shortcut (=ustc=, =tuna=, =bfsu=) for NonGNU ELPA. |
+| =cache=               | ="false"=                                                   | Enable integrated dependency caching in this step.           |
+| =cache-elpa=          | ="true"=                                                    | Specifically toggle ELPA package and archive cache.          |
+| =cache-dir=           | ="~/.emacs.d/elpa"=                                         | Directory for cached packages and metadata.                  |
+| =cache-key=           | =""=                                                        | Custom cache key salt for manual cache rotation.             |
+| =emacs-version=       | =""= (detected)                                           | Emacs version string (e.g. =29.4=, =30.2=).                  |
 
 *** Basic Configuration
 
@@ -130,6 +176,11 @@ Runs byte-compilation, =checkdoc=, =package-lint=, and =relint= across source fi
 | =archives=            | ="gnu nongnu melpa elpaish"=                                | Enabled package archives (space-delimited string).           |
 | =unsigned-archives=   | ="elpaish"=                                                 | Fallback unsigned archive whitelist (space-delimited string).|
 | =keyring-url=         | ="https://tychoish.github.io/elpaish/elpaish-keyring.gpg"=   | Remote GPG keyring URL.                                      |
+| =cache=               | ="false"=                                                   | Enable integrated dependency caching in this step.           |
+| =cache-elpa=          | ="true"=                                                    | Specifically toggle ELPA package and archive cache.          |
+| =cache-dir=           | ="~/.emacs.d/elpa"=                                         | Directory for cached packages and metadata.                  |
+| =cache-key=           | =""=                                                        | Custom cache key salt for manual cache rotation.             |
+| =emacs-version=       | =""= (detected)                                           | Emacs version string (e.g. =29.4=, =30.2=).                  |
 
 *** Basic Configuration
 
@@ -164,6 +215,11 @@ coverage artifacts, and outputs a formatted markdown summary into
 | =archives=            | ="gnu nongnu melpa elpaish"=                                | Enabled package archives (space-delimited string).           |
 | =unsigned-archives=   | ="elpaish"=                                                 | Fallback unsigned archive whitelist (space-delimited string).|
 | =keyring-url=         | ="https://tychoish.github.io/elpaish/elpaish-keyring.gpg"=   | Remote GPG keyring URL.                                      |
+| =cache=               | ="false"=                                                   | Enable integrated dependency caching in this step.           |
+| =cache-elpa=          | ="true"=                                                    | Specifically toggle ELPA package and archive cache.          |
+| =cache-dir=           | ="~/.emacs.d/elpa"=                                         | Directory for cached packages and metadata.                  |
+| =cache-key=           | =""=                                                        | Custom cache key salt for manual cache rotation.             |
+| =emacs-version=       | =""= (detected)                                           | Emacs version string (e.g. =29.4=, =30.2=).                  |
 
 *** Codecov Integration Workflow
 
@@ -207,7 +263,7 @@ The =lint= sub-action supports four integrated analyzers:
 :CUSTOM_ID: example-workflow
 :END:
 
-A complete, zero-boilerplate CI matrix workflow with linting, ERT tests, code coverage, and Codecov upload:
+A complete, zero-boilerplate CI matrix workflow with caching, linting, ERT tests, code coverage, and Codecov upload:
 
 #+begin_src yaml
 name: CI
@@ -232,9 +288,15 @@ jobs:
         emacs-version:
           - "29.4"
           - "30.2"
+          - "31.1"
 
     steps:
       - uses: actions/checkout@v5
+
+      - name: Cache Emacs Dependencies
+        uses: tychoish/elisp-ci/cache@main
+        with:
+          emacs-version: ${{ matrix.emacs-version }}
 
       - name: Lint Source Code
         uses: tychoish/elisp-ci/lint@main

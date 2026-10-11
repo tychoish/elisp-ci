@@ -25,6 +25,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Cache Emacs Dependencies
+        uses: ./cache
+        with:
+          emacs-version: ${{ matrix.emacs-version }}
+
       - name: Run Test Suite Action (YAML List Inputs)
         uses: ./
         with:
