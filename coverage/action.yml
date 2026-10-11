@@ -53,9 +53,100 @@ inputs:
     description: "Custom URL or mirror shortcut (ustc, tuna, bfsu) for NonGNU ELPA."
     required: false
     default: ""
+
+  cache:
+    description: "Enable all caching (true/false, or 'all'). Default: 'false'."
+    required: false
+    default: "false"
+  cache-elpa:
+    description: "Enable ELPA package and archive caching (true/false). Default: 'true'."
+    required: false
+    default: "true"
+  cache_elpa:
+    description: "Alias for cache-elpa."
+    required: false
+    default: ""
+  cache-dir:
+    description: "Directory for cached ELPA packages and archive metadata."
+    required: false
+    default: "~/.emacs.d/elpa"
+  cache-key:
+    description: "Custom cache key salt to force rotation or distinguish environments."
+    required: false
+    default: ""
+  emacs-version:
+    description: "Emacs version string (e.g. 29.4, 30.2, 31.1). If empty, auto-detected."
+    required: false
+    default: ""
+
 runs:
   using: "composite"
   steps:
+    - name: Compute Stable Cache Keys
+      id: keys
+      shell: bash
+      env:
+        INPUT_CACHE: ${{ inputs.cache }}
+        INPUT_CACHE_ELPA: ${{ inputs.cache-elpa }}
+        INPUT_CACHE_ELPA_ALIAS: ${{ inputs.cache_elpa }}
+        INPUT_CACHE_DIR: ${{ inputs.cache-dir }}
+        INPUT_CACHE_KEY: ${{ inputs.cache-key }}
+        INPUT_EMACS_VERSION: ${{ inputs.emacs-version }}
+        INPUT_DEPENDENCIES: ${{ inputs.dependencies }}
+        INPUT_ARCHIVES: ${{ inputs.archives }}
+      run: |
+        CACHE_ALL="${INPUT_CACHE:-${ELISP_CI_CACHE:-false}}"
+        CACHE_ELPA_OPT="${INPUT_CACHE_ELPA_ALIAS:-${INPUT_CACHE_ELPA:-${ELISP_CI_CACHE_ELPA:-${CACHE_ALL}}}}"
+
+        CACHE_ALL_LOWER=$(echo "$CACHE_ALL" | tr '[:upper:]' '[:lower:]')
+        CACHE_ELPA_LOWER=$(echo "$CACHE_ELPA_OPT" | tr '[:upper:]' '[:lower:]')
+
+        if [ "$CACHE_ALL_LOWER" = "false" ] || [ "$CACHE_ALL_LOWER" = "off" ] || [ "$CACHE_ALL_LOWER" = "0" ] || \
+           [ "$CACHE_ELPA_LOWER" = "false" ] || [ "$CACHE_ELPA_LOWER" = "off" ] || [ "$CACHE_ELPA_LOWER" = "0" ]; then
+          echo "enabled=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        echo "enabled=true" >> "$GITHUB_OUTPUT"
+
+        VER="${INPUT_EMACS_VERSION:-${ELISP_CI_EMACS_VERSION:-}}"
+        if [ -z "$VER" ]; then
+          VER=$(emacs --version 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n1 || echo "unknown")
+        fi
+
+        DEP_INPUTS="${INPUT_DEPENDENCIES}${ELISP_CI_DEPENDENCIES:-}${DEPENDENCIES:-}${INPUT_ARCHIVES:-}${ELISP_CI_ARCHIVES:-}"
+        PKG_HEADERS=$(grep -h -E '^[;[:space:]]*Package-Requires:' *.el 2>/dev/null | sort || true)
+        MANIFEST_CONTENT=""
+        for m in Cask Eldev Eask *-pkg.el; do
+          if [ -f "$m" ]; then
+            MANIFEST_CONTENT="${MANIFEST_CONTENT}$(cat "$m" 2>/dev/null || true)"
+          fi
+        done
+
+        DEP_HASH=$(printf "%s\n%s\n%s" "$DEP_INPUTS" "$PKG_HEADERS" "$MANIFEST_CONTENT" | sha256sum | cut -c1-16)
+        EPOCH=$(date +'%Y-w%V')
+
+        SALT="${INPUT_CACHE_KEY:-${ELISP_CI_CACHE_KEY:-}}"
+        if [ -n "$SALT" ]; then
+          PREFIX="elisp-ci-${SALT}-${RUNNER_OS}-emacs-${VER}"
+        else
+          PREFIX="elisp-ci-${RUNNER_OS}-emacs-${VER}"
+        fi
+
+        echo "primary-key=${PREFIX}-${DEP_HASH}-${EPOCH}" >> "$GITHUB_OUTPUT"
+        echo "restore-key-dep=${PREFIX}-${DEP_HASH}-" >> "$GITHUB_OUTPUT"
+        echo "restore-key-prefix=${PREFIX}-" >> "$GITHUB_OUTPUT"
+
+    - name: Restore / Save ELPA Cache
+      if: steps.keys.outputs.enabled == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.cache-dir }}
+        key: ${{ steps.keys.outputs.primary-key }}
+        restore-keys: |
+          ${{ steps.keys.outputs.restore-key-dep }}
+          ${{ steps.keys.outputs.restore-key-prefix }}
+
     - name: Run Emacs Lisp Coverage
       shell: bash
       env:
@@ -71,6 +162,7 @@ runs:
         INPUT_FALLBACK_MIRRORS: ${{ inputs.fallback-mirrors }}
         INPUT_GNU_MIRROR: ${{ inputs.gnu-mirror }}
         INPUT_NONGNU_MIRROR: ${{ inputs.nongnu-mirror }}
+        INPUT_CACHE_DIR: ${{ inputs.cache-dir }}
       run: |
         SCRIPT_PATH="${{ github.action_path }}/../scripts/run-coverage.el"
         if [ ! -f "$SCRIPT_PATH" ]; then
