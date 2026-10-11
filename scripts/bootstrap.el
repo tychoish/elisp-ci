@@ -104,19 +104,43 @@ Resolved from inputs, env vars, Package-Requires headers, and EXTRA-DEPS."
                      (t "extra-deps"))))
     all))
 
+(defun elisp-ci--setup-package-dir ()
+  "Configure `package-user-dir' if specified in inputs or environment."
+  (let* ((dir-env (or (elisp-ci--getenv-nonempty "INPUT_CACHE_DIR")
+                      (elisp-ci--getenv-nonempty "ELISP_CI_CACHE_DIR")
+                      (elisp-ci--getenv-nonempty "ELISP_CACHE_DIR"))))
+    (when dir-env
+      (let ((expanded (expand-file-name dir-env)))
+        (setq package-user-dir expanded)
+        (message "Configured package-user-dir: %s" package-user-dir)))))
+
 (defun elisp-ci--import-elpaish-keyring ()
   "Fetch and import ELPAish GPG public keyring for archive verification."
   (condition-case err
       (let* ((keyring-url (or (getenv "INPUT_KEYRING_URL")
                               (getenv "ELISP_CI_KEYRING_URL")
                               "https://tychoish.github.io/elpaish/elpaish-keyring.gpg"))
-             (temp-file (make-temp-file "elpaish-keyring" nil ".gpg")))
-        (message "Fetching ELPAish GPG keyring from %s..." keyring-url)
-        (url-copy-file keyring-url temp-file t)
-        (when (fboundp 'package-import-keyring)
-          (package-import-keyring temp-file)
-          (message "Successfully imported ELPAish GPG keyring into package.el GnuPG dir."))
-        (delete-file temp-file))
+             (cached-file (and (boundp 'package-user-dir)
+                               package-user-dir
+                               (expand-file-name "elpaish-keyring.gpg" package-user-dir))))
+        (if (and cached-file
+                 (file-exists-p cached-file)
+                 (> (file-attribute-size (file-attributes cached-file)) 0))
+            (progn
+              (message "Using cached ELPAish GPG keyring from %s" cached-file)
+              (when (fboundp 'package-import-keyring)
+                (package-import-keyring cached-file)
+                (message "Successfully imported cached ELPAish GPG keyring.")))
+          (let ((target-file (or cached-file (make-temp-file "elpaish-keyring" nil ".gpg"))))
+            (message "Fetching ELPAish GPG keyring from %s..." keyring-url)
+            (when cached-file
+              (make-directory (file-name-directory cached-file) t))
+            (url-copy-file keyring-url target-file t)
+            (when (fboundp 'package-import-keyring)
+              (package-import-keyring target-file)
+              (message "Successfully imported ELPAish GPG keyring into package.el GnuPG dir."))
+            (unless cached-file
+              (delete-file target-file)))))
     (error
      (message "Note: Could not import ELPAish GPG keyring (%s); using fallback unsigned archive entry."
               (error-message-string err)))))
@@ -253,20 +277,25 @@ Resolved from inputs, env vars, Package-Requires, and EXTRA-DEPS."
   (let* ((dep-strs (elisp-ci--get-dependencies extra-deps))
          (dep-syms (delete-dups (mapcar #'intern dep-strs))))
     (when dep-syms
-      (unless package-archive-contents
-        (message "Refreshing package archive contents...")
-        (package-refresh-contents))
-      ;; Pre-install transient archive package if requested or needed by dependencies
-      ;; to avoid built-in Emacs 30 transient conflict with cl-generic
-      (when (member 'transient dep-syms)
-        (let ((desc (cadr (assq 'transient package-archive-contents))))
-          (when desc
-            (message "Installing archive transient explicitly...")
-            (package-install desc))))
-      (dolist (dep dep-syms)
-        (unless (package-installed-p dep)
-          (message "Installing dependency: %s" dep)
-          (package-install dep))))))
+      (let ((uninstalled (seq-filter (lambda (d) (not (package-installed-p d))) dep-syms)))
+        (when uninstalled
+          (let ((missing-from-archive
+                 (seq-filter (lambda (d) (not (assq d package-archive-contents))) uninstalled)))
+            (when (or (null package-archive-contents) missing-from-archive)
+              (message "Refreshing package archive contents...")
+              (package-refresh-contents)))
+          ;; Pre-install transient archive package if requested or needed by dependencies
+          ;; to avoid built-in Emacs 30 transient conflict with cl-generic
+          (when (and (member 'transient uninstalled)
+                     (not (package-installed-p 'transient)))
+            (let ((desc (cadr (assq 'transient package-archive-contents))))
+              (when desc
+                (message "Installing archive transient explicitly...")
+                (package-install desc))))
+          (dolist (dep uninstalled)
+            (unless (package-installed-p dep)
+              (message "Installing dependency: %s" dep)
+              (package-install dep))))))))
 
 (defun elisp-ci--find-test-files (&optional pattern-override)
   "Find test files matching pattern in INPUT_TEST_FILES or PATTERN-OVERRIDE."
@@ -282,6 +311,7 @@ Resolved from inputs, env vars, Package-Requires, and EXTRA-DEPS."
     (delete-dups matched)))
 
 ;; Execute standard bootstrapping
+(elisp-ci--setup-package-dir)
 (elisp-ci--configure-archives)
 (elisp-ci--setup-load-paths)
 (unless (string-equal (or (getenv "INPUT_RUNNER")

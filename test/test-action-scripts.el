@@ -1,5 +1,6 @@
 ;;; test-action-scripts.el --- Tests for action scripts -*- lexical-binding: t; -*-
 
+(require 'cl-lib)
 (require 'ert)
 (require 'bootstrap)
 
@@ -108,6 +109,42 @@
                                    (cons "ELISP_CI_GNU_MIRROR=ustc" process-environment))))
     (elisp-ci--configure-archives)
     (should (equal (cdr (assoc "gnu" package-archives)) "https://mirrors.ustc.edu.cn/elpa/gnu/"))))
+
+(ert-deftest action-scripts/setup-package-dir-env ()
+  "Test configuring package-user-dir via environment variables."
+  (let* ((orig-dir package-user-dir)
+         (temp-cache (make-temp-file "elisp-cache-test" t))
+         (process-environment (cons (format "INPUT_CACHE_DIR=%s" temp-cache) process-environment)))
+    (unwind-protect
+        (progn
+          (elisp-ci--setup-package-dir)
+          (should (equal package-user-dir (expand-file-name temp-cache))))
+      (setq package-user-dir orig-dir)
+      (delete-directory temp-cache t))))
+
+(ert-deftest action-scripts/import-elpaish-keyring-cached ()
+  "Test importing cached ELPAish GPG keyring without downloading."
+  (let* ((orig-dir package-user-dir)
+         (temp-cache (make-temp-file "elpaish-cache-test" t))
+         (cached-keyring (expand-file-name "elpaish-keyring.gpg" temp-cache))
+         (called-url-copy nil)
+         (called-import-keyring nil))
+    (unwind-protect
+        (progn
+          (setq package-user-dir temp-cache)
+          ;; Create a dummy non-empty keyring file without triggering epa-file
+          (let ((file-name-handler-alist nil))
+            (with-temp-file cached-keyring
+              (insert "dummy-gpg-data")))
+          (cl-letf (((symbol-function 'url-copy-file)
+                     (lambda (&rest _args) (setq called-url-copy t)))
+                    ((symbol-function 'package-import-keyring)
+                     (lambda (_f) (setq called-import-keyring t))))
+            (elisp-ci--import-elpaish-keyring)
+            (should (null called-url-copy))
+            (should called-import-keyring)))
+      (setq package-user-dir orig-dir)
+      (delete-directory temp-cache t))))
 
 (provide 'test-action-scripts)
 ;;; test-action-scripts.el ends here
