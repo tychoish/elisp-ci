@@ -11,6 +11,10 @@ inputs:
     description: "Directory where the ELPA archive and static site will be written."
     required: false
     default: "public/"
+  work-dir:
+    description: "Directory where remote Git repositories are cloned."
+    required: false
+    default: "repos/"
   streams:
     description: "Space-separated list of streams to generate (e.g. 'all', or 'snapshot stable staging')."
     required: false
@@ -31,6 +35,10 @@ inputs:
     description: "Directory for caching installed ELPA dependencies."
     required: false
     default: "elpa-ci"
+  cache-repos:
+    description: "Enable caching of cloned upstream Git repositories (true/false)."
+    required: false
+    default: "true"
   preflight:
     description: "Run preflight lint/compile quality checks before publishing (0 or 1)."
     required: false
@@ -48,10 +56,12 @@ runs:
       with:
         packages-file: ${{ inputs.packages-file }}
         output-dir: ${{ inputs.output-dir }}
+        work-dir: ${{ inputs.work-dir }}
         streams: ${{ inputs.streams }}
         signing-key: ${{ inputs.signing-key }}
         gpg-passphrase: ${{ inputs.gpg-passphrase }}
         cache: ${{ inputs.cache }}
         cache-dir: ${{ inputs.cache-dir }}
+        cache-repos: ${{ inputs.cache-repos }}
         preflight: ${{ inputs.preflight }}
         upload-pages-artifact: ${{ inputs.upload-pages-artifact }}

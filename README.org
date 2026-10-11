@@ -238,6 +238,46 @@ coverage artifacts, and outputs a formatted markdown summary into
     fail_ci_if_error: false
 #+end_src
 
+** Publish ELPA Repository
+:PROPERTIES:
+:CUSTOM_ID: publish-elpa-repository
+:END:
+
+Builds and packages arbitrary Emacs package archives across snapshot, stable,
+and staging streams with static website generation, detached OpenPGP signatures,
+and automatic two-layer caching (delegating to =tychoish/elpaish=).
+
+*Action reference*: =tychoish/elisp-ci/publish@main=
+
+*** Options
+
+| Input                   | Default       | Description                                                                 |
+|-------------------------+---------------+-----------------------------------------------------------------------------|
+| =packages-file=         | =packages.el= | Path to package recipe definitions file.                                    |
+| =output-dir=            | =public/=     | Directory where the static site and archive streams are written.            |
+| =work-dir=              | =repos/=      | Directory where remote Git repositories are cloned and updated.             |
+| =streams=               | =all=         | Space-separated list of streams to generate (=all=, or =snapshot stable=). |
+| =signing-key=           | =""=          | GPG private key armor for archive signing (omit for unsigned archives).    |
+| =gpg-passphrase=        | =""=          | Passphrase for the GPG signing key.                                        |
+| =cache=                 | ="true"=      | Enable dependency and Git repository caching.                                |
+| =cache-dir=             | =elpa-ci=     | Cache directory for installed ELPA packages and archive metadata.           |
+| =cache-repos=           | ="true"=      | Cache the =work-dir= Git clones to eliminate full re-clones between builds.  |
+| =preflight=             | ="0"=         | Run preflight quality checks before publishing (=0= or =1=).                |
+| =upload-pages-artifact= | ="false"=     | Automatically upload output directory as a GitHub Pages deployment artifact.|
+
+*** GitHub Pages Deployment Example
+
+#+begin_src yaml
+- name: Publish ELPA Repository
+  uses: tychoish/elisp-ci/publish@main
+  with:
+    packages-file: "packages.el"
+    output-dir: "public/"
+    signing-key: ${{ secrets.ELPAISH_SIGNING_KEY }}
+    gpg-passphrase: ${{ secrets.ELPAISH_GPG_PASSPHRASE }}
+    upload-pages-artifact: "true"
+#+end_src
+
 * Supported Linters & Quality Gates
 :PROPERTIES:
 :CUSTOM_ID: supported-linters
