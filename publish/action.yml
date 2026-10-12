@@ -1,20 +1,24 @@
 name: "Publish ELPA Repository"
-description: "Build and publish an ELPA package repository using the ELPAish toolkit."
+description: "Build, sign, and publish arbitrary Emacs package repositories with caching using the ELPAish toolkit."
 author: "sam kleinman <sam@tychoish.com>"
 
 inputs:
   packages-file:
-    description: "Path to packages definition file (default: packages.el)."
+    description: "Path to packages definition file (relative to workspace or absolute)."
     required: false
     default: "packages.el"
   output-dir:
-    description: "Directory where the ELPA archive and static site will be written."
+    description: "Directory where the ELPA archive and static website will be written (ephemeral, never cached)."
     required: false
     default: "public/"
   work-dir:
     description: "Directory where remote Git repositories are cloned."
     required: false
     default: "repos/"
+  parallel-jobs:
+    description: "Maximum concurrent package build jobs (number or 'auto')."
+    required: false
+    default: "auto"
   streams:
     description: "Space-separated list of streams to generate (e.g. 'all', or 'snapshot stable staging')."
     required: false
@@ -28,7 +32,7 @@ inputs:
     required: false
     default: ""
   cache:
-    description: "Enable dependency caching (true/false)."
+    description: "Enable dependency caching with weekly epochs (true/false)."
     required: false
     default: "true"
   cache-dir:
@@ -51,17 +55,65 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Delegate to ELPAish Builder Action
-      uses: tychoish/elpaish@main
+    - name: Ensure texinfo tools are installed
+      shell: bash
+      run: |
+        which makeinfo >/dev/null 2>&1 && which install-info >/dev/null 2>&1 || (apt-get update && apt-get install -y texinfo install-info)
+
+    # Cache Invariant: Only immutable external ELPA dependencies and upstream
+    # Git repositories are preserved across runs. Built package tarballs,
+    # signatures, archive catalogs, and website HTML (public/) MUST NEVER be
+    # cached to ensure build purity and reproducibility.
+    - name: Cache Emacs Dependencies
+      if: inputs.cache == 'true'
+      uses: tychoish/elisp-ci/cache@main
       with:
-        packages-file: ${{ inputs.packages-file }}
-        output-dir: ${{ inputs.output-dir }}
-        work-dir: ${{ inputs.work-dir }}
-        streams: ${{ inputs.streams }}
-        signing-key: ${{ inputs.signing-key }}
-        gpg-passphrase: ${{ inputs.gpg-passphrase }}
-        cache: ${{ inputs.cache }}
         cache-dir: ${{ inputs.cache-dir }}
-        cache-repos: ${{ inputs.cache-repos }}
-        preflight: ${{ inputs.preflight }}
-        upload-pages-artifact: ${{ inputs.upload-pages-artifact }}
+
+    - name: Cache Cloned Git Repositories
+      if: inputs.cache == 'true' && inputs.cache-repos == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.work-dir }}
+        key: elpaish-repos-${{ runner.os }}-${{ hashFiles(inputs.packages-file) }}
+        restore-keys: |
+          elpaish-repos-${{ runner.os }}-
+
+    - name: Bootstrap Package Dependencies
+      uses: tychoish/elisp-ci/eval@main
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        ELPAISH_ACTION_PATH: ${{ github.action_path }}
+        ELPAISH_PACKAGES_FILE: ${{ inputs.packages-file }}
+      with:
+        action-path: ${{ github.action_path }}
+        eval: |
+          (let* ((action-root (file-name-directory (directory-file-name (elisp-ci-action-path))))
+                 (script (expand-file-name "scripts/bootstrap-elpaish.el" action-root)))
+            (load script nil nil t))
+
+    - name: Build ELPA Package Repository
+      uses: tychoish/elisp-ci/eval@main
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        ELPAISH_ACTION_PATH: ${{ github.action_path }}
+        ELPAISH_PACKAGES_FILE: ${{ inputs.packages-file }}
+        ELPAISH_OUTPUT_DIR: ${{ inputs.output-dir }}
+        ELPAISH_WORK_DIR: ${{ inputs.work-dir }}
+        ELPAISH_PARALLEL_JOBS: ${{ inputs.parallel-jobs }}
+        ELPAISH_STREAMS: ${{ inputs.streams }}
+        ELPAISH_SIGNING_KEY: ${{ inputs.signing-key }}
+        ELPAISH_GPG_PASSPHRASE: ${{ inputs.gpg-passphrase }}
+        ELPAISH_RUN_PREFLIGHT: ${{ inputs.preflight }}
+      with:
+        action-path: ${{ github.action_path }}
+        eval: |
+          (let* ((action-root (file-name-directory (directory-file-name (elisp-ci-action-path))))
+                 (script (expand-file-name "scripts/build-elpaish.el" action-root)))
+            (load script nil nil t))
+
+    - name: Upload Pages Artifact
+      if: inputs.upload-pages-artifact == 'true'
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ${{ inputs.output-dir }}
