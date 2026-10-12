@@ -262,7 +262,7 @@ and automatic two-layer caching using the ELPAish builder toolkit.
 | =cache=                 | ="true"=      | Enable dependency and Git repository caching.                                |
 | =cache-dir=             | =elpa-ci=     | Cache directory for installed ELPA packages and archive metadata.           |
 | =cache-repos=           | ="true"=      | Cache the =work-dir= Git clones to eliminate full re-clones between builds.  |
-| =preflight=             | ="0"=         | Run preflight quality checks before publishing (=0= or =1=).                |
+| =preflight=             | ="false"=     | Run preflight quality checks before publishing (=true= or =false=).         |
 | =upload-pages-artifact= | ="false"=     | Automatically upload output directory as a GitHub Pages deployment artifact.|
 
 *** GitHub Pages Deployment Example

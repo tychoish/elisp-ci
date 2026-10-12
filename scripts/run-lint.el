@@ -35,9 +35,10 @@
          (required-linters (or (elisp-ci--parse-list (getenv "INPUT_REQUIRED_LINTERS"))
                                (elisp-ci--parse-list (getenv "ELISP_CI_REQUIRED_LINTERS"))
                                active-linters))
-         (fail-on-warning (not (string-equal (or (getenv "INPUT_FAIL_ON_WARNING")
-                                                 (getenv "ELISP_CI_FAIL_ON_WARNING"))
-                                             "false")))
+         (fail-on-warning (not (member (downcase (string-trim (or (getenv "INPUT_FAIL_ON_WARNING")
+                                                                  (getenv "ELISP_CI_FAIL_ON_WARNING")
+                                                                  "true")))
+                                       '("false" "off" "no" "0" "disabled" "none"))))
          (error-count 0)
          (warning-count 0))
 

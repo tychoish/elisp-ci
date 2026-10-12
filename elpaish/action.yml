@@ -44,9 +44,9 @@ inputs:
     required: false
     default: "true"
   preflight:
-    description: "Run preflight lint/compile quality checks before publishing (0 or 1)."
+    description: "Run preflight lint/compile quality checks before publishing (true/false, default: false)."
     required: false
-    default: "0"
+    default: "false" 
   upload-pages-artifact:
     description: "Automatically upload output-dir as a GitHub Pages artifact (true/false)."
     required: false

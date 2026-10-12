@@ -125,8 +125,11 @@
           (expand-file-name "public/" default-directory)))
 
   ;; Preflight quality gates can be toggled via ELPAISH_RUN_PREFLIGHT
-  (when (equal (getenv "ELPAISH_RUN_PREFLIGHT") "0")
-    (setq elpaish-run-preflight nil))
+  (when-let* ((pf-env (getenv "ELPAISH_RUN_PREFLIGHT")))
+    (when (not (string-empty-p (string-trim pf-env)))
+      (setq elpaish-run-preflight
+            (not (member (downcase (string-trim pf-env))
+                         '("false" "off" "no" "0" "none" "skip" "disabled"))))))
 
   ;; Initialize GPG signing from environment variables (ELPAISH_SIGNING_KEY)
   (elpaish-init-signing-from-env)
