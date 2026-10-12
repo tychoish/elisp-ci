@@ -1,4 +1,4 @@
-name: "Publish ELPA Repository"
+name: "ELPAish Repository Builder"
 description: "Build, sign, and publish arbitrary Emacs package repositories with caching using the ELPAish toolkit."
 author: "sam kleinman <sam@tychoish.com>"
 

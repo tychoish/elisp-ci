@@ -238,16 +238,16 @@ coverage artifacts, and outputs a formatted markdown summary into
     fail_ci_if_error: false
 #+end_src
 
-** Publish ELPA Repository
+** ELPAish Repository Builder
 :PROPERTIES:
-:CUSTOM_ID: publish-elpa-repository
+:CUSTOM_ID: elpaish-repository-builder
 :END:
 
 Builds and packages arbitrary Emacs package archives across snapshot, stable,
 and staging streams with static website generation, detached OpenPGP signatures,
-and automatic two-layer caching (delegating to =tychoish/elpaish=).
+and automatic two-layer caching using the ELPAish builder toolkit.
 
-*Action reference*: =tychoish/elisp-ci/publish@main=
+*Action reference*: =tychoish/elisp-ci/elpaish@main=
 
 *** Options
 
@@ -269,7 +269,7 @@ and automatic two-layer caching (delegating to =tychoish/elpaish=).
 
 #+begin_src yaml
 - name: Publish ELPA Repository
-  uses: tychoish/elisp-ci/publish@main
+  uses: tychoish/elisp-ci/elpaish@main
   with:
     packages-file: "packages.el"
     output-dir: "public/"
