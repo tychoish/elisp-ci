@@ -35,7 +35,7 @@
       (cons 'progn body))))
 
 (defun elpaish--resolve-container-path (path)
-  "Resolve PATH, translating GitHub Actions runner host paths to container paths if needed."
+  "Resolve PATH, translating runner host paths to container paths if needed."
   (cond
    ((or (null path) (string-empty-p path)) path)
    ((file-exists-p path) (expand-file-name path))

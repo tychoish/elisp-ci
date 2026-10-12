@@ -29,7 +29,9 @@ Checks inputs, environment variables, and converts GitHub runner host paths
       (expand-file-name default-directory)))))
 
 (defun elisp-ci--eval-runner ()
-  "Execute batch load-paths, dependencies, file loading, and inline expression evaluation."
+  "Execute batch evaluation runner.
+Processes load-paths, dependencies, file loading, and inline expression
+evaluation."
   ;; 1. Optional dependency bootstrapping
   (let* ((dep-input (getenv "INPUT_DEPENDENCIES"))
          (has-deps (and dep-input (not (string-empty-p (string-trim dep-input)))))
