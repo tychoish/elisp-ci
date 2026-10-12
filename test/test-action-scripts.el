@@ -146,13 +146,27 @@
       (setq package-user-dir orig-dir)
       (delete-directory temp-cache t))))
 
+(defvar elisp-ci--test-file-loaded)
+(defvar elisp-ci--test-eval-result)
+(declare-function elisp-ci-action-path "run-eval")
+
+(defun elisp-ci--resolve-run-eval-path ()
+  "Resolve the absolute path to scripts/run-eval.el."
+  (or (locate-library "run-eval")
+      (let* ((this-dir (file-name-directory (or load-file-name
+                                                buffer-file-name
+                                                default-directory)))
+             (from-test (expand-file-name "../scripts/run-eval.el" this-dir)))
+        (and (file-exists-p from-test) from-test))
+      (let ((from-root (expand-file-name "scripts/run-eval.el" default-directory)))
+        (and (file-exists-p from-root) from-root))
+      (error "Could not resolve scripts/run-eval.el")))
 
 (ert-deftest action-scripts/eval-inline-and-file ()
   "Test batch evaluation runner for both inline expressions and file loading."
   (let* ((tmp-dir (make-temp-file "elisp-ci-eval-test-" t))
          (script-file (expand-file-name "fixture-script.el" tmp-dir))
-         (test-file-dir (file-name-directory (locate-library "test-action-scripts")))
-         (run-eval-path (expand-file-name "../scripts/run-eval.el" test-file-dir)))
+         (run-eval-path (elisp-ci--resolve-run-eval-path)))
     (with-temp-file script-file
       (insert ";;; -*- lexical-binding: t; -*-\n(setq elisp-ci--test-file-loaded 100)\n"))
     (unwind-protect
@@ -168,9 +182,8 @@
 
 (ert-deftest action-scripts/eval-action-path-resolution ()
   "Test container path remapping and default directory fallback in elisp-ci-action-path."
-  (let* ((test-file-dir (file-name-directory (locate-library "test-action-scripts")))
-         (run-eval-path (expand-file-name "../scripts/run-eval.el" test-file-dir)))
-    (require (quote run-eval) run-eval-path)
+  (let ((run-eval-path (elisp-ci--resolve-run-eval-path)))
+    (require 'run-eval run-eval-path)
     (let ((process-environment (cons "INPUT_ACTION_PATH=/tmp" process-environment)))
       (should (equal (elisp-ci-action-path) (expand-file-name "/tmp"))))
     (let ((process-environment (cons "INPUT_ACTION_PATH=" process-environment)))
