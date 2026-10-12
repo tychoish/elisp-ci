@@ -1,0 +1,153 @@
+name: "Emacs Lisp Eval"
+description: "Evaluate inline Emacs Lisp expressions or run script files in batch mode without quoting issues."
+author: "sam kleinman <sam@tychoish.com>"
+
+inputs:
+  eval:
+    description: "Inline Emacs Lisp code to evaluate."
+    required: false
+    default: ""
+  file:
+    description: "Path to an Emacs Lisp file to load and execute."
+    required: false
+    default: ""
+  load-paths:
+    description: "Directories to prepend to load-path (space/comma-delimited or multiline string)."
+    required: false
+    default: "."
+  action-path:
+    description: "Action or project root directory for resolving relative paths."
+    required: false
+    default: ""
+  dependencies:
+    description: "ELPA packages to install prior to execution (space/comma-delimited or multiline string)."
+    required: false
+    default: ""
+  archives:
+    description: "Package archives to enable (space-delimited string)."
+    required: false
+    default: "gnu nongnu melpa elpaish"
+  unsigned-archives:
+    description: "Package archives allowed without GPG signatures (space-delimited string)."
+    required: false
+    default: "elpaish"
+  keyring-url:
+    description: "URL to fetch GPG keyring for archive signature verification."
+    required: false
+    default: "https://tychoish.github.io/elpaish/elpaish-keyring.gpg"
+  fallback-mirrors:
+    description: "Use fallback mirrors (e.g. USTC) for GNU and NonGNU ELPA by default (true/false)."
+    required: false
+    default: "true"
+  gnu-mirror:
+    description: "Custom URL or mirror shortcut (ustc, tuna, bfsu, upstream, none) for GNU ELPA."
+    required: false
+    default: ""
+  nongnu-mirror:
+    description: "Custom URL or mirror shortcut (ustc, tuna, bfsu) for NonGNU ELPA."
+    required: false
+    default: ""
+  cache:
+    description: "Enable dependency caching (true/false). Default: 'false'."
+    required: false
+    default: "false"
+  cache-elpa:
+    description: "Enable ELPA package and archive caching (true/false). Default: 'true'."
+    required: false
+    default: "true"
+  cache_elpa:
+    description: "Alias for cache-elpa."
+    required: false
+    default: ""
+  cache-dir:
+    description: "Directory for cached ELPA packages and archive metadata."
+    required: false
+    default: "~/.emacs.d/elpa"
+  cache-key:
+    description: "Custom cache key salt to force rotation or distinguish environments."
+    required: false
+    default: ""
+  emacs-version:
+    description: "Emacs version string (e.g. 29.4, 30.2, 31.1). If empty, auto-detected."
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Compute Stable Cache Keys
+      id: keys
+      shell: bash
+      env:
+        INPUT_CACHE: ${{ inputs.cache }}
+        INPUT_CACHE_ELPA: ${{ inputs.cache-elpa }}
+        INPUT_CACHE_ELPA_ALIAS: ${{ inputs.cache_elpa }}
+        INPUT_CACHE_DIR: ${{ inputs.cache-dir }}
+        INPUT_CACHE_KEY: ${{ inputs.cache-key }}
+        INPUT_EMACS_VERSION: ${{ inputs.emacs-version }}
+        INPUT_DEPENDENCIES: ${{ inputs.dependencies }}
+      run: |
+        ENABLED="false"
+        if [ "$INPUT_CACHE" = "true" ] || [ "$INPUT_CACHE" = "all" ] || [ "$INPUT_CACHE_ELPA" = "true" ] || [ "$INPUT_CACHE_ELPA_ALIAS" = "true" ]; then
+          if [ -n "$INPUT_DEPENDENCIES" ]; then
+            ENABLED="true"
+          fi
+        fi
+        echo "enabled=${ENABLED}" >> "$GITHUB_OUTPUT"
+
+        if [ "$ENABLED" = "true" ]; then
+          VER="${INPUT_EMACS_VERSION}"
+          if [ -z "$VER" ]; then
+            VER=$(emacs --version 2>/dev/null | head -n1 | sed -E 's/.*Emacs ([0-9]+(\.[0-9]+)*).*/\1/' || echo "unknown")
+          fi
+          DEP_HASH=$(printf "%s" "$INPUT_DEPENDENCIES" | sha256sum | cut -c1-16)
+          EPOCH=$(date +'%Y-w%V')
+          SALT="${INPUT_CACHE_KEY:-${ELISP_CI_CACHE_KEY:-}}"
+          if [ -n "$SALT" ]; then
+            PREFIX="elisp-ci-${SALT}-${RUNNER_OS}-emacs-${VER}"
+          else
+            PREFIX="elisp-ci-${RUNNER_OS}-emacs-${VER}"
+          fi
+          echo "primary-key=${PREFIX}-${DEP_HASH}-${EPOCH}" >> "$GITHUB_OUTPUT"
+          echo "restore-key-dep=${PREFIX}-${DEP_HASH}-" >> "$GITHUB_OUTPUT"
+          echo "restore-key-prefix=${PREFIX}-" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Restore / Save ELPA Cache
+      if: steps.keys.outputs.enabled == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.cache-dir }}
+        key: ${{ steps.keys.outputs.primary-key }}
+        restore-keys: |
+          ${{ steps.keys.outputs.restore-key-dep }}
+          ${{ steps.keys.outputs.restore-key-prefix }}
+
+    - name: Run Emacs Lisp Eval
+      shell: bash
+      env:
+        INPUT_EVAL: ${{ inputs.eval }}
+        INPUT_FILE: ${{ inputs.file }}
+        INPUT_LOAD_PATHS: ${{ inputs.load-paths }}
+        INPUT_ACTION_PATH: ${{ inputs.action-path }}
+        INPUT_DEPENDENCIES: ${{ inputs.dependencies }}
+        INPUT_ARCHIVES: ${{ inputs.archives }}
+        INPUT_UNSIGNED_ARCHIVES: ${{ inputs.unsigned-archives }}
+        INPUT_KEYRING_URL: ${{ inputs.keyring-url }}
+        INPUT_FALLBACK_MIRRORS: ${{ inputs.fallback-mirrors }}
+        INPUT_GNU_MIRROR: ${{ inputs.gnu-mirror }}
+        INPUT_NONGNU_MIRROR: ${{ inputs.nongnu-mirror }}
+        INPUT_CACHE_DIR: ${{ inputs.cache-dir }}
+        ELISP_CI_HOST_ACTION_PATH: ${{ github.action_path }}
+      run: |
+        SCRIPT_PATH="${{ github.action_path }}/../scripts/run-eval.el"
+        if [ ! -f "$SCRIPT_PATH" ]; then
+          SCRIPT_PATH="/__w/${SCRIPT_PATH#/home/runner/work/}"
+        fi
+        if [ ! -f "$SCRIPT_PATH" ] && [ -n "${GITHUB_ACTION_PATH:-}" ]; then
+          SCRIPT_PATH="${GITHUB_ACTION_PATH}/../scripts/run-eval.el"
+        fi
+        if [ ! -f "$SCRIPT_PATH" ]; then
+          SCRIPT_PATH="${GITHUB_WORKSPACE}/scripts/run-eval.el"
+        fi
+        emacs --batch -l "$SCRIPT_PATH"

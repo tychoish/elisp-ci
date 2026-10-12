@@ -278,6 +278,73 @@ and automatic two-layer caching (delegating to =tychoish/elpaish=).
     upload-pages-artifact: "true"
 #+end_src
 
+** Batch Evaluation Runner
+:PROPERTIES:
+:CUSTOM_ID: batch-evaluation-runner
+:END:
+
+Evaluates arbitrary inline Emacs Lisp expressions or executes script files in batch mode
+without shell quoting collisions or container path discrepancies.
+
+*Action reference*: =tychoish/elisp-ci/eval@main=
+
+*** Options
+
+| Input               | Default       | Description                                                                 |
+|---------------------+---------------+-----------------------------------------------------------------------------|
+| =eval=              | =""=          | Inline Emacs Lisp code to evaluate in batch mode.                           |
+| =file=              | =""=          | Path to an Emacs Lisp script to load and execute.                          |
+| =load-paths=        | ="."=         | Directories to prepend to =load-path= (space/newline-delimited string).     |
+| =action-path=       | =""=          | Project or action root for resolving relative paths and container mounts.   |
+| =dependencies=      | =""=          | ELPA packages to install prior to evaluation.                               |
+| =archives=          | ="gnu nongnu melpa elpaish"= | Package archives to enable.                                 |
+| =cache=             | ="false"=     | Enable dependency caching for installed packages.                           |
+| =cache-dir=         | ="~/.emacs.d/elpa"= | Directory for cached packages and metadata.                           |
+
+*** Features
+- *Zero Quoting Collisions*: Pass multi-line Elisp expressions using YAML's =|= scalar syntax.
+  Bash never interpolates the expressions, so single quotes, double quotes, and complex macros work naturally.
+- *Container-Aware Path Helper*: Exposes =(elisp-ci-action-path)= in Lisp code to reliably locate files
+  whether running on the bare runner host or inside Docker container mount paths (=/__w/...=).
+- *Combined Execution*: If both =file= and =eval= are specified, the script file is loaded first,
+  followed by evaluation of the inline expression.
+
+*** Examples
+
+**** Inline Lisp Expression
+#+begin_src yaml
+- name: Evaluate Elisp
+  uses: tychoish/elisp-ci/eval@main
+  with:
+    load-paths: |
+      pkg
+      test
+    eval: |
+      (require 'my-pkg)
+      (message "Computed: %s" (my-pkg-calculate 42))
+#+end_src
+
+**** Script File Execution
+#+begin_src yaml
+- name: Run Build Script
+  uses: tychoish/elisp-ci/eval@main
+  with:
+    load-paths: "pkg scripts"
+    file: scripts/build.el
+#+end_src
+
+**** Container-Aware Root with Action Path
+#+begin_src yaml
+- name: Bootstrap Action Dependencies
+  uses: tychoish/elisp-ci/eval@main
+  with:
+    action-path: ${{ github.action_path }}
+    eval: |
+      (let ((root (elisp-ci-action-path)))
+        (load (expand-file-name "scripts/bootstrap.el" root) nil nil t))
+#+end_src
+
+
 * Supported Linters & Quality Gates
 :PROPERTIES:
 :CUSTOM_ID: supported-linters

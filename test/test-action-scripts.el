@@ -146,5 +146,35 @@
       (setq package-user-dir orig-dir)
       (delete-directory temp-cache t))))
 
+
+(ert-deftest action-scripts/eval-inline-and-file ()
+  "Test batch evaluation runner for both inline expressions and file loading."
+  (let* ((tmp-dir (make-temp-file "elisp-ci-eval-test-" t))
+         (script-file (expand-file-name "fixture-script.el" tmp-dir))
+         (test-file-dir (file-name-directory (locate-library "test-action-scripts")))
+         (run-eval-path (expand-file-name "../scripts/run-eval.el" test-file-dir)))
+    (with-temp-file script-file
+      (insert ";;; -*- lexical-binding: t; -*-\n(setq elisp-ci--test-file-loaded 100)\n"))
+    (unwind-protect
+        (let* ((process-environment
+                (append (list (concat "INPUT_ACTION_PATH=" tmp-dir)
+                              "INPUT_FILE=fixture-script.el"
+                              "INPUT_EVAL=(setq elisp-ci--test-eval-result (+ elisp-ci--test-file-loaded 42))")
+                        process-environment)))
+          (load run-eval-path nil t)
+          (should (equal elisp-ci--test-file-loaded 100))
+          (should (equal elisp-ci--test-eval-result 142)))
+      (delete-directory tmp-dir t))))
+
+(ert-deftest action-scripts/eval-action-path-resolution ()
+  "Test container path remapping and default directory fallback in elisp-ci-action-path."
+  (let* ((test-file-dir (file-name-directory (locate-library "test-action-scripts")))
+         (run-eval-path (expand-file-name "../scripts/run-eval.el" test-file-dir)))
+    (require (quote run-eval) run-eval-path)
+    (let ((process-environment (cons "INPUT_ACTION_PATH=/tmp" process-environment)))
+      (should (equal (elisp-ci-action-path) (expand-file-name "/tmp"))))
+    (let ((process-environment (cons "INPUT_ACTION_PATH=" process-environment)))
+      (should (equal (elisp-ci-action-path) (expand-file-name default-directory))))))
+
 (provide 'test-action-scripts)
 ;;; test-action-scripts.el ends here
