@@ -345,6 +345,25 @@ without shell quoting collisions or container path discrepancies.
 #+end_src
 
 
+** Texinfo Tooling Installation
+:PROPERTIES:
+:CUSTOM_ID: texinfo-tooling-installation
+:END:
+
+Ensures ~makeinfo~ and ~install-info~ executables are available on the runner host
+or inside CI containers across Linux package managers (APT, APK, Pacman, DNF) and macOS (Homebrew).
+Exits immediately if tools are already present.
+
+*Action reference*: =tychoish/elisp-ci/texinfo@main=
+
+*** Example
+
+#+begin_src yaml
+- name: Ensure Texinfo Tools
+  uses: tychoish/elisp-ci/texinfo@main
+#+end_src
+
+
 * Supported Linters & Quality Gates
 :PROPERTIES:
 :CUSTOM_ID: supported-linters
