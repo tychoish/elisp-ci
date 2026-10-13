@@ -10,8 +10,13 @@
 
 ;;; Code:
 
+(defvar elpaish-packages-file)
+(defvar elpaish-registry)
+(declare-function elpaish-load-packages "elpaish-recipes")
+(declare-function elpaish-install-ensure-package-dependencies "elpaish-install")
+
 (defun elpaish--resolve-container-path (path)
-  "Resolve PATH, translating GitHub Actions runner host paths to container paths if needed."
+  "Resolve PATH, translating runner host paths to container paths if needed."
   (cond
    ((or (null path) (string-empty-p path)) path)
    ((file-exists-p path) (expand-file-name path))

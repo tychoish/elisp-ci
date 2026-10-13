@@ -11,6 +11,16 @@
 ;;; Code:
 
 (require 'cl-lib)
+
+(defvar elpaish-parallel-jobs)
+(defvar elpaish-work-dir)
+(defvar elpaish-packages-file)
+(defvar elpaish-output-dir)
+(defvar elpaish-run-preflight)
+(declare-function elpaish-build-all "elpaish")
+(declare-function elpaish-init-signing-from-env "elpaish")
+(declare-function elpaish-load-packages "elpaish-recipes")
+
 (unless (macrop 'incf)
   (defmacro incf (place &optional delta)
     "Increment PLACE by DELTA (default 1)."
