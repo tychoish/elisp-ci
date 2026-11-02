@@ -58,9 +58,27 @@ INPUT can be:
    (t
     (list (format "%s" input)))))
 
+(defun elisp-ci--discover-scan-dirs ()
+  "Directories to scan for Package-Requires headers.
+Resolved from INPUT_LOAD_PATHS/ELISP_CI_LOAD_PATHS/ELISP_LOAD_PATHS,
+falling back to the current directory when unset."
+  (let* ((paths-env (or (getenv "INPUT_LOAD_PATHS")
+                        (getenv "ELISP_CI_LOAD_PATHS")
+                        (getenv "ELISP_LOAD_PATHS")))
+         (paths (or (and paths-env (elisp-ci--parse-list paths-env))
+                    '("."))))
+    (seq-filter #'file-directory-p (mapcar #'expand-file-name paths))))
+
 (defun elisp-ci--discover-package-requires ()
-  "Extract dependencies from Package-Requires headers in source .el files."
-  (let ((el-files (file-expand-wildcards "*.el" t))
+  "Extract dependencies from Package-Requires headers in source .el files.
+Scans the directories configured via `load-paths' (see
+`elisp-ci--discover-scan-dirs'), not just the current directory, so
+repositories that keep sources in a subdirectory (e.g. \"lisp/\") are
+still auto-discovered."
+  (let ((el-files (seq-mapcat (lambda (dir)
+                                 (file-expand-wildcards
+                                  (expand-file-name "*.el" dir) t))
+                               (elisp-ci--discover-scan-dirs)))
         (deps nil))
     (dolist (f el-files)
       (with-temp-buffer
