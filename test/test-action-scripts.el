@@ -189,5 +189,41 @@
     (let ((process-environment (cons "INPUT_ACTION_PATH=" process-environment)))
       (should (equal (elisp-ci-action-path) (expand-file-name default-directory))))))
 
+(ert-deftest action-scripts/parse-dep-spec ()
+  "Test parsing dependency specifications into (pkg . min-version)."
+  (should (equal (elisp-ci--parse-dep-spec 'transient) '(transient . nil)))
+  (should (equal (elisp-ci--parse-dep-spec "transient") '(transient . nil)))
+  (should (equal (elisp-ci--parse-dep-spec "transient>=0.9.3") '(transient . "0.9.3")))
+  (should (equal (elisp-ci--parse-dep-spec "transient:0.9.3") '(transient . "0.9.3")))
+  (should (equal (elisp-ci--parse-dep-spec "(transient \"0.9.3\")") '(transient . "0.9.3")))
+  (should (equal (elisp-ci--parse-dep-spec '(transient "0.9.3")) '(transient . "0.9.3")))
+  (should (equal (elisp-ci--parse-dep-spec '(transient (0 9 3))) '(transient . "0.9.3"))))
+
+(ert-deftest action-scripts/package-installed-p ()
+  "Test checking package installation with optional version constraints."
+  (should (elisp-ci--package-installed-p 'emacs "26.1"))
+  (should-not (elisp-ci--package-installed-p 'nonexistent-test-pkg-xyz))
+  (should-not (elisp-ci--package-installed-p 'emacs "999.0")))
+
+(ert-deftest action-scripts/discover-package-requires-specs ()
+  "Test extracting dependency specs with versions from Package-Requires header."
+  (let* ((tmp-dir (make-temp-file "elisp-ci-pkg-req-test" t))
+         (pkg-file (expand-file-name "test-pkg.el" tmp-dir)))
+    (with-temp-file pkg-file
+      (insert ";;; test-pkg.el --- test -*- lexical-binding: t; -*-\n"
+              ";;; Package-Requires: ((emacs \"29.4\") (transient \"0.9.3\") (foo \"1.0\"))\n"
+              "(provide 'test-pkg)\n"))
+    (unwind-protect
+        (let ((process-environment (cons (format "INPUT_LOAD_PATHS=%s" tmp-dir) process-environment)))
+          (let ((specs (elisp-ci--discover-package-requires-specs))
+                (deps (elisp-ci--discover-package-requires)))
+            (should (equal (cdr (assoc "transient" specs)) "0.9.3"))
+            (should (equal (cdr (assoc "foo" specs)) "1.0"))
+            (should (null (assoc "emacs" specs)))
+            (should (member "transient" deps))
+            (should (member "foo" deps))
+            (should-not (member "emacs" deps))))
+      (delete-directory tmp-dir t))))
+
 (provide 'test-action-scripts)
 ;;; test-action-scripts.el ends here

@@ -69,17 +69,16 @@ falling back to the current directory when unset."
                     '("."))))
     (seq-filter #'file-directory-p (mapcar #'expand-file-name paths))))
 
-(defun elisp-ci--discover-package-requires ()
-  "Extract dependencies from Package-Requires headers in source .el files.
+(defun elisp-ci--discover-package-requires-specs ()
+  "Extract dependency specifications from Package-Requires headers.
 Scans the directories configured via `load-paths' (see
-`elisp-ci--discover-scan-dirs'), not just the current directory, so
-repositories that keep sources in a subdirectory (e.g. \"lisp/\") are
-still auto-discovered."
+`elisp-ci--discover-scan-dirs').
+Returns an alist of (PKG-NAME-STRING . MIN-VERSION-STRING-OR-NIL)."
   (let ((el-files (seq-mapcat (lambda (dir)
-                                 (file-expand-wildcards
-                                  (expand-file-name "*.el" dir) t))
-                               (elisp-ci--discover-scan-dirs)))
-        (deps nil))
+                                (file-expand-wildcards
+                                 (expand-file-name "*.el" dir) t))
+                              (elisp-ci--discover-scan-dirs)))
+        (specs nil))
     (dolist (f el-files)
       (with-temp-buffer
         (insert-file-contents f)
@@ -92,10 +91,32 @@ still auto-discovered."
                              (read header-str)
                            (error nil))))
             (dolist (item parsed)
-              (let ((name (if (listp item) (symbol-name (car item)) (symbol-name item))))
+              (let* ((name (if (listp item) (symbol-name (car item)) (symbol-name item)))
+                     (ver (and (listp item) (cadr item)))
+                     (ver-str (cond ((stringp ver) ver)
+                                    ((listp ver) (mapconcat #'number-to-string ver "."))
+                                    ((numberp ver) (number-to-string ver))
+                                    (t nil))))
                 (unless (member name elisp-ci--builtin-packages)
-                  (push name deps))))))))
-    (delete-dups (nreverse deps))))
+                  (let ((existing (assoc name specs)))
+                    (if existing
+                        (when (and ver-str
+                                   (or (null (cdr existing))
+                                       (condition-case nil
+                                           (version-list-< (version-to-list (cdr existing))
+                                                           (version-to-list ver-str))
+                                         (error nil))))
+                          (setcdr existing ver-str))
+                      (push (cons name ver-str) specs))))))))))
+    (nreverse specs)))
+
+(defun elisp-ci--discover-package-requires ()
+  "Extract dependencies from Package-Requires headers in source .el files.
+Scans the directories configured via `load-paths' (see
+`elisp-ci--discover-scan-dirs'), not just the current directory, so
+repositories that keep sources in a subdirectory (e.g. \"lisp/\") are
+still auto-discovered."
+  (mapcar #'car (elisp-ci--discover-package-requires-specs)))
 
 (defun elisp-ci--get-dependencies (&optional extra-deps)
   "Get all required dependencies.
@@ -288,32 +309,94 @@ are enabled, otherwise UPSTREAM-URL."
           (add-to-list 'load-path exp)
           (message "Added to load-path: %s" exp))))))
 
+(defun elisp-ci--parse-dep-spec (dep)
+  "Parse DEP into (PKG-SYMBOL . MIN-VERSION-STRING-OR-NIL).
+DEP can be a symbol, a string, or a list."
+  (cond
+   ((and (listp dep) (symbolp (car dep)))
+    (let ((ver (cadr dep)))
+      (cons (car dep)
+            (cond ((stringp ver) ver)
+                  ((listp ver) (mapconcat #'number-to-string ver "."))
+                  ((numberp ver) (number-to-string ver))
+                  (t nil)))))
+   ((symbolp dep)
+    (cons dep nil))
+   ((stringp dep)
+    (let ((trimmed (string-trim dep)))
+      (cond
+       ((and (string-prefix-p "(" trimmed) (string-suffix-p ")" trimmed))
+        (let ((parsed (condition-case nil (read trimmed) (error nil))))
+          (if (and (listp parsed) (symbolp (car parsed)))
+              (elisp-ci--parse-dep-spec parsed)
+            (cons (intern trimmed) nil))))
+       ((string-match "\\`\\([^>=<:]+\\)[>=<:]+\\(.+\\)\\'" trimmed)
+        (cons (intern (string-trim (match-string 1 trimmed)))
+              (string-trim (match-string 2 trimmed))))
+       (t
+        (cons (intern trimmed) nil)))))
+   (t
+    (cons (intern (format "%s" dep)) nil))))
+
+(defun elisp-ci--package-installed-p (pkg &optional min-version)
+  "Return non-nil if PKG is installed and satisfies MIN-VERSION.
+MIN-VERSION can be a version string like \"0.9.3\" or a version list."
+  (let ((ver-list (cond
+                   ((null min-version) nil)
+                   ((listp min-version) min-version)
+                   ((stringp min-version) (condition-case nil
+                                              (version-to-list min-version)
+                                            (error nil)))
+                   (t nil))))
+    (if ver-list
+        (package-installed-p pkg ver-list)
+      (package-installed-p pkg))))
+
+(defun elisp-ci--install-package (pkg)
+  "Install PKG from package archives.
+PKG is a symbol. If PKG is built-in or already installed at an older version,
+installs from `package-archive-contents' descriptor directly."
+  (let ((desc (cadr (assq pkg package-archive-contents))))
+    (if desc
+        (package-install desc)
+      (package-install pkg))))
+
 (defun elisp-ci--install-dependencies (&optional extra-deps)
   "Install required dependencies.
 Resolved from inputs, env vars, Package-Requires, and EXTRA-DEPS."
   (package-initialize)
-  (let* ((dep-strs (elisp-ci--get-dependencies extra-deps))
-         (dep-syms (delete-dups (mapcar #'intern dep-strs))))
-    (when dep-syms
-      (let ((uninstalled (seq-filter (lambda (d) (not (package-installed-p d))) dep-syms)))
+  (let* ((dep-items (elisp-ci--get-dependencies extra-deps))
+         (req-specs (elisp-ci--discover-package-requires-specs))
+         (resolved-specs
+          (delete-dups
+           (mapcar (lambda (item)
+                     (let* ((spec (elisp-ci--parse-dep-spec item))
+                            (pkg (car spec))
+                            (ver (or (cdr spec)
+                                     (cdr (assoc (symbol-name pkg) req-specs)))))
+                       (cons pkg ver)))
+                   dep-items))))
+    (when resolved-specs
+      (let ((uninstalled
+             (seq-filter (lambda (spec)
+                           (not (elisp-ci--package-installed-p (car spec) (cdr spec))))
+                         resolved-specs)))
         (when uninstalled
           (let ((missing-from-archive
-                 (seq-filter (lambda (d) (not (assq d package-archive-contents))) uninstalled)))
+                 (seq-filter (lambda (spec)
+                               (not (assq (car spec) package-archive-contents)))
+                             uninstalled)))
             (when (or (null package-archive-contents) missing-from-archive)
               (message "Refreshing package archive contents...")
               (package-refresh-contents)))
-          ;; Pre-install transient archive package if requested or needed by dependencies
-          ;; to avoid built-in Emacs 30 transient conflict with cl-generic
-          (when (and (member 'transient uninstalled)
-                     (not (package-installed-p 'transient)))
-            (let ((desc (cadr (assq 'transient package-archive-contents))))
-              (when desc
-                (message "Installing archive transient explicitly...")
-                (package-install desc))))
-          (dolist (dep uninstalled)
-            (unless (package-installed-p dep)
-              (message "Installing dependency: %s" dep)
-              (package-install dep))))))))
+          (dolist (spec uninstalled)
+            (let ((pkg (car spec))
+                  (min-ver (cdr spec)))
+              (unless (elisp-ci--package-installed-p pkg min-ver)
+                (if min-ver
+                    (message "Installing dependency: %s (>= %s)" pkg min-ver)
+                  (message "Installing dependency: %s" pkg))
+                (elisp-ci--install-package pkg)))))))))
 
 (defun elisp-ci--find-test-files (&optional pattern-override)
   "Find test files matching pattern in INPUT_TEST_FILES or PATTERN-OVERRIDE."
