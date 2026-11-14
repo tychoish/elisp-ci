@@ -91,24 +91,36 @@
 
 (ert-deftest action-scripts/configure-archives-gnu-mirror-env ()
   "Test setting GNU ELPA mirror via environment variable."
-  (let ((process-environment (cons "INPUT_GNU_MIRROR=ustc" process-environment)))
-    (elisp-ci--configure-archives)
-    (should (equal (cdr (assoc "gnu" package-archives)) "https://mirrors.ustc.edu.cn/elpa/gnu/"))))
+  (let ((orig-archives (copy-alist package-archives))
+        (process-environment (cons "INPUT_GNU_MIRROR=ustc" process-environment)))
+    (unwind-protect
+        (progn
+          (elisp-ci--configure-archives)
+          (should (equal (cdr (assoc "gnu" package-archives)) "https://mirrors.ustc.edu.cn/elpa/gnu/")))
+      (setq package-archives orig-archives))))
 
 (ert-deftest action-scripts/configure-archives-custom-key-value ()
   "Test name=url syntax in archives list."
-  (let ((process-environment (cons "INPUT_ARCHIVES=gnu=https://mirror.example.com/gnu/ melpa" process-environment)))
-    (elisp-ci--configure-archives)
-    (should (equal (cdr (assoc "gnu" package-archives)) "https://mirror.example.com/gnu/"))
-    (should (equal (cdr (assoc "melpa" package-archives)) "https://melpa.org/packages/"))
-    (should (null (assoc "nongnu" package-archives)))))
+  (let ((orig-archives (copy-alist package-archives))
+        (process-environment (cons "INPUT_ARCHIVES=gnu=https://mirror.example.com/gnu/ melpa" process-environment)))
+    (unwind-protect
+        (progn
+          (elisp-ci--configure-archives)
+          (should (equal (cdr (assoc "gnu" package-archives)) "https://mirror.example.com/gnu/"))
+          (should (equal (cdr (assoc "melpa" package-archives)) "https://melpa.org/packages/"))
+          (should (null (assoc "nongnu" package-archives))))
+      (setq package-archives orig-archives))))
 
 (ert-deftest action-scripts/configure-archives-empty-input-falls-back-to-job-env ()
   "Test that empty INPUT_GNU_MIRROR falls back to ELISP_CI_GNU_MIRROR."
-  (let ((process-environment (cons "INPUT_GNU_MIRROR="
-                                   (cons "ELISP_CI_GNU_MIRROR=ustc" process-environment))))
-    (elisp-ci--configure-archives)
-    (should (equal (cdr (assoc "gnu" package-archives)) "https://mirrors.ustc.edu.cn/elpa/gnu/"))))
+  (let ((orig-archives (copy-alist package-archives))
+        (process-environment (cons "INPUT_GNU_MIRROR="
+                                     (cons "ELISP_CI_GNU_MIRROR=ustc" process-environment))))
+    (unwind-protect
+        (progn
+          (elisp-ci--configure-archives)
+          (should (equal (cdr (assoc "gnu" package-archives)) "https://mirrors.ustc.edu.cn/elpa/gnu/")))
+      (setq package-archives orig-archives))))
 
 (ert-deftest action-scripts/setup-package-dir-env ()
   "Test configuring package-user-dir via environment variables."
