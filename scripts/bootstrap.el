@@ -222,12 +222,12 @@ Resolved from inputs, env vars, Package-Requires headers, and EXTRA-DEPS."
     (and val (not (string-empty-p (string-trim val))) (string-trim val))))
 
 (defun elisp-ci--fallback-mirrors-enabled-p ()
-  "Return non-nil if archive fallback mirrors are enabled by default."
+  "Return non-nil if archive fallback mirrors are enabled."
   (let ((val (or (elisp-ci--getenv-nonempty "INPUT_FALLBACK_MIRRORS")
                  (elisp-ci--getenv-nonempty "ELISP_CI_FALLBACK_MIRRORS")
                  (elisp-ci--getenv-nonempty "ELISP_FALLBACK_MIRRORS")
                  (elisp-ci--getenv-nonempty "FALLBACK_MIRRORS")
-                 "true")))
+                 "false")))
     (not (member (downcase (string-trim val)) '("false" "off" "no" "0" "none")))))
 
 (defun elisp-ci--resolve-archive-url (mirror-input known-mirrors default-mirror-url upstream-url)

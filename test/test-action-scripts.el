@@ -64,15 +64,20 @@
                                                 elisp-ci--default-gnu-mirror-url
                                                 elisp-ci--upstream-gnu-url)
                  "https://custom.org/elpa/"))
-  ;; Default fallback mirror resolution when unset or empty
+  ;; Canonical archive resolution when unset or empty.
+  (let ((process-environment (cons "INPUT_FALLBACK_MIRRORS=false" process-environment)))
   (should (equal (elisp-ci--resolve-archive-url "" elisp-ci--known-gnu-mirrors
                                                 elisp-ci--default-gnu-mirror-url
                                                 elisp-ci--upstream-gnu-url)
-                 "https://mirrors.ustc.edu.cn/elpa/gnu/"))
+                 "https://elpa.gnu.org/packages/"))
   (should (equal (elisp-ci--resolve-archive-url nil elisp-ci--known-gnu-mirrors
                                                 elisp-ci--default-gnu-mirror-url
                                                 elisp-ci--upstream-gnu-url)
-                 "https://mirrors.ustc.edu.cn/elpa/gnu/"))
+                 "https://elpa.gnu.org/packages/"))
+  (should (equal (elisp-ci--resolve-archive-url nil elisp-ci--known-nongnu-mirrors
+                                                elisp-ci--default-nongnu-mirror-url
+                                                elisp-ci--upstream-nongnu-url)
+                 "https://elpa.nongnu.org/nongnu/")))
   ;; Explicit opt-outs via keyword
   (should (equal (elisp-ci--resolve-archive-url "upstream" elisp-ci--known-gnu-mirrors
                                                 elisp-ci--default-gnu-mirror-url
@@ -82,6 +87,12 @@
                                                 elisp-ci--default-gnu-mirror-url
                                                 elisp-ci--upstream-gnu-url)
                  "https://elpa.gnu.org/packages/"))
+  ;; Fallback mirrors remain available by explicit opt-in.
+  (let ((process-environment (cons "INPUT_FALLBACK_MIRRORS=true" process-environment)))
+    (should (equal (elisp-ci--resolve-archive-url nil elisp-ci--known-gnu-mirrors
+                                                  elisp-ci--default-gnu-mirror-url
+                                                  elisp-ci--upstream-gnu-url)
+                   "https://mirrors.ustc.edu.cn/elpa/gnu/")))
   ;; Global opt-out via INPUT_FALLBACK_MIRRORS=false
   (let ((process-environment (cons "INPUT_FALLBACK_MIRRORS=false" process-environment)))
     (should (equal (elisp-ci--resolve-archive-url nil elisp-ci--known-gnu-mirrors
