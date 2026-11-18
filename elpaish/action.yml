@@ -58,7 +58,7 @@ inputs:
   elpaish:
     description: "Alias for include-elpaish (true/false)."
     required: false
-    default: "true"
+    default: ""
 
 runs:
   using: "composite"

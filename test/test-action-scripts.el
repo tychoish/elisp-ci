@@ -155,7 +155,24 @@
   "Test that setting INPUT_ELPAISH=true includes ELPAish repository."
   (let ((orig-archives (copy-alist package-archives))
         (orig-unsigned (copy-sequence package-unsigned-archives))
-        (process-environment (cons "INPUT_ELPAISH=true" process-environment)))
+        (process-environment (cons "INPUT_ELPAISH=true"
+                                   (cons "INPUT_INCLUDE_ELPAISH=false"
+                                         (cons "INPUT_ARCHIVES=" process-environment)))))
+    (unwind-protect
+        (progn
+          (elisp-ci--configure-archives)
+          (should (equal (cdr (assoc "elpaish" package-archives)) "https://tychoish.github.io/elpaish/snapshot/"))
+          (should (member "elpaish" package-unsigned-archives)))
+      (setq package-archives orig-archives)
+      (setq package-unsigned-archives orig-unsigned))))
+
+(ert-deftest action-scripts/configure-archives-opt-in-include-elpaish ()
+  "Test that setting INPUT_INCLUDE_ELPAISH=true includes ELPAish repository."
+  (let ((orig-archives (copy-alist package-archives))
+        (orig-unsigned (copy-sequence package-unsigned-archives))
+        (process-environment (cons "INPUT_INCLUDE_ELPAISH=true"
+                                   (cons "INPUT_ELPAISH=false"
+                                         (cons "INPUT_ARCHIVES=" process-environment)))))
     (unwind-protect
         (progn
           (elisp-ci--configure-archives)

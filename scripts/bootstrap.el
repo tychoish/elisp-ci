@@ -252,13 +252,12 @@ are enabled, otherwise UPSTREAM-URL."
 
 (defun elisp-ci--elpaish-enabled-p ()
   "Return non-nil if ELPAish archive opt-in is enabled via environment."
-  (let ((val (or (elisp-ci--getenv-nonempty "INPUT_INCLUDE_ELPAISH")
-                 (elisp-ci--getenv-nonempty "INPUT_ELPAISH")
-                 (elisp-ci--getenv-nonempty "ELISP_CI_INCLUDE_ELPAISH")
-                 (elisp-ci--getenv-nonempty "ELISP_CI_ELPAISH")
-                 (elisp-ci--getenv-nonempty "INCLUDE_ELPAISH")
-                 (elisp-ci--getenv-nonempty "ELPAISH"))))
-    (and val (elisp-ci--truthy-p val))))
+  (or (elisp-ci--truthy-p (elisp-ci--getenv-nonempty "INPUT_INCLUDE_ELPAISH"))
+      (elisp-ci--truthy-p (elisp-ci--getenv-nonempty "INPUT_ELPAISH"))
+      (elisp-ci--truthy-p (elisp-ci--getenv-nonempty "ELISP_CI_INCLUDE_ELPAISH"))
+      (elisp-ci--truthy-p (elisp-ci--getenv-nonempty "ELISP_CI_ELPAISH"))
+      (elisp-ci--truthy-p (elisp-ci--getenv-nonempty "INCLUDE_ELPAISH"))
+      (elisp-ci--truthy-p (elisp-ci--getenv-nonempty "ELPAISH"))))
 
 (defun elisp-ci--configure-archives ()
   "Configure package archives and unsigned archives from environment."

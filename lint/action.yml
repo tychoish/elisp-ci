@@ -38,7 +38,7 @@ inputs:
   include-elpaish:
     description: "Alias for elpaish."
     required: false
-    default: "false"
+    default: ""
   unsigned-archives:
     description: "Package archives allowed without GPG signatures (space/comma-delimited string)."
     required: false
