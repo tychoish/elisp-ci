@@ -59,7 +59,7 @@
                                  ("nongnu" . "https://elpa.nongnu.org/nongnu/")
                                  ("melpa" . "https://melpa.org/packages/"))))
       (when opt-in
-        (add-to-list 'package-unsigned-archives "elpaish"))))
+        (add-to-list 'package-unsigned-archives "elpaish")))))
 
 (package-initialize)
 
