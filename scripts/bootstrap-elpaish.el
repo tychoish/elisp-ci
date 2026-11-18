@@ -37,9 +37,18 @@
                     (t (expand-file-name "elpa-ci" default-directory)))))
   (setq package-user-dir target-dir))
 
-(setq package-archives '(("gnu" . "https://elpa.gnu.org/packages/")
-                         ("nongnu" . "https://elpa.nongnu.org/nongnu/")
-                         ("melpa" . "https://melpa.org/packages/")))
+(let* ((script-dir (file-name-directory (or load-file-name buffer-file-name default-directory)))
+       (bootstrap-script (expand-file-name "bootstrap.el" script-dir)))
+  (if (file-exists-p bootstrap-script)
+      (progn
+        (load bootstrap-script nil nil t)
+        (when (fboundp 'elisp-ci--configure-archives)
+          (elisp-ci--configure-archives)))
+    (setq package-archives '(("gnu" . "https://elpa.gnu.org/packages/")
+                             ("nongnu" . "https://elpa.nongnu.org/nongnu/")
+                             ("melpa" . "https://melpa.org/packages/")
+                             ("elpaish" . "https://tychoish.github.io/elpaish/snapshot/")))
+    (add-to-list 'package-unsigned-archives "elpaish")))
 
 (package-initialize)
 

@@ -87,7 +87,9 @@
        (package-user-dir (or target-user-dir (expand-file-name "elpa" default-directory)))
        (package-archives '(("gnu" . "https://elpa.gnu.org/packages/")
                            ("nongnu" . "https://elpa.nongnu.org/nongnu/")
-                           ("melpa" . "https://melpa.org/packages/"))))
+                           ("melpa" . "https://melpa.org/packages/")
+                           ("elpaish" . "https://tychoish.github.io/elpaish/snapshot/"))))
+  (add-to-list 'package-unsigned-archives "elpaish")
   (package-initialize)
 
   ;; Ensure elpaish pkg/ directory takes precedence over installed packages if present
