@@ -85,6 +85,7 @@ runs:
         ELPAISH_PACKAGES_FILE: ${{ inputs.packages-file }}
       with:
         action-path: ${{ github.action_path }}
+        cache-dir: ${{ inputs.cache-dir }}
         eval: |
           (let* ((action-root (file-name-directory (directory-file-name (elisp-ci-action-path))))
                  (script (expand-file-name "scripts/bootstrap-elpaish.el" action-root)))
@@ -105,6 +106,7 @@ runs:
         ELPAISH_RUN_PREFLIGHT: ${{ inputs.preflight }}
       with:
         action-path: ${{ github.action_path }}
+        cache-dir: ${{ inputs.cache-dir }}
         eval: |
           (let* ((action-root (file-name-directory (directory-file-name (elisp-ci-action-path))))
                  (script (expand-file-name "scripts/build-elpaish.el" action-root)))
