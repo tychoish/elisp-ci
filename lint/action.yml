@@ -41,7 +41,7 @@ inputs:
     default: "https://tychoish.github.io/elpaish/elpaish-keyring.gpg"
 
   fallback-mirrors:
-    description: "Use fallback mirrors (e.g. USTC) for GNU and NonGNU ELPA (true/false)."
+    description: "Use fallback mirrors for GNU and NonGNU ELPA (true/false)."
     required: false
     default: "false"
 
