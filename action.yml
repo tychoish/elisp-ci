@@ -16,13 +16,21 @@ inputs:
     required: false
     default: "."
   archives:
-    description: "Package archives to enable: gnu, nongnu, melpa, elpaish (space/comma-delimited string)."
+    description: "Package archives to enable: gnu, nongnu, melpa (space/comma-delimited string)."
     required: false
-    default: "gnu nongnu melpa elpaish"
+    default: "gnu nongnu melpa"
+  elpaish:
+    description: "Opt-in to include ELPAish package repository (true/false)."
+    required: false
+    default: "false"
+  include-elpaish:
+    description: "Alias for elpaish."
+    required: false
+    default: "false"
   unsigned-archives:
     description: "Package archives allowed without GPG signatures (space/comma-delimited string)."
     required: false
-    default: "elpaish"
+    default: ""
   keyring-url:
     description: "URL to fetch GPG keyring for archive signature verification."
     required: false
@@ -146,6 +154,8 @@ runs:
         INPUT_TEST_FILES: ${{ inputs.test-files }}
         INPUT_LOAD_PATHS: ${{ inputs.load-paths }}
         INPUT_ARCHIVES: ${{ inputs.archives }}
+        INPUT_ELPAISH: ${{ inputs.elpaish }}
+        INPUT_INCLUDE_ELPAISH: ${{ inputs.include-elpaish }}
         INPUT_UNSIGNED_ARCHIVES: ${{ inputs.unsigned-archives }}
         INPUT_KEYRING_URL: ${{ inputs.keyring-url }}
         INPUT_RUNNER: ${{ inputs.runner }}

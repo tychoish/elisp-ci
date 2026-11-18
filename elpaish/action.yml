@@ -51,6 +51,14 @@ inputs:
     description: "Automatically upload output-dir as a GitHub Pages artifact (true/false)."
     required: false
     default: "false"
+  include-elpaish:
+    description: "Include ELPAish snapshot archive when bootstrapping dependencies (true/false)."
+    required: false
+    default: "true"
+  elpaish:
+    description: "Alias for include-elpaish (true/false)."
+    required: false
+    default: "true"
 
 runs:
   using: "composite"
@@ -83,6 +91,8 @@ runs:
         ACTION_PATH: ${{ github.action_path }}
         ELPAISH_ACTION_PATH: ${{ github.action_path }}
         ELPAISH_PACKAGES_FILE: ${{ inputs.packages-file }}
+        INPUT_INCLUDE_ELPAISH: ${{ inputs.include-elpaish }}
+        INPUT_ELPAISH: ${{ inputs.elpaish }}
       with:
         action-path: ${{ github.action_path }}
         cache-dir: ${{ inputs.cache-dir }}
@@ -97,6 +107,8 @@ runs:
         ACTION_PATH: ${{ github.action_path }}
         ELPAISH_ACTION_PATH: ${{ github.action_path }}
         ELPAISH_PACKAGES_FILE: ${{ inputs.packages-file }}
+        INPUT_INCLUDE_ELPAISH: ${{ inputs.include-elpaish }}
+        INPUT_ELPAISH: ${{ inputs.elpaish }}
         ELPAISH_OUTPUT_DIR: ${{ inputs.output-dir }}
         ELPAISH_WORK_DIR: ${{ inputs.work-dir }}
         ELPAISH_PARALLEL_JOBS: ${{ inputs.parallel-jobs }}

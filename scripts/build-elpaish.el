@@ -101,11 +101,22 @@
                          ((file-directory-p home-elpa) home-elpa)
                          (t (and (boundp 'package-user-dir) package-user-dir))))
        (package-user-dir (or target-user-dir home-elpa (expand-file-name "elpa" default-directory)))
-       (package-archives '(("gnu" . "https://elpa.gnu.org/packages/")
-                           ("nongnu" . "https://elpa.nongnu.org/nongnu/")
-                           ("melpa" . "https://melpa.org/packages/")
-                           ("elpaish" . "https://tychoish.github.io/elpaish/snapshot/"))))
-  (add-to-list 'package-unsigned-archives "elpaish")
+       (opt-in (let ((val (or (getenv "INPUT_INCLUDE_ELPAISH")
+                              (getenv "INPUT_ELPAISH")
+                              (getenv "ELISP_CI_INCLUDE_ELPAISH")
+                              (getenv "ELISP_CI_ELPAISH")
+                              "true")))
+                 (not (member (downcase (string-trim val)) '("" "false" "off" "no" "0" "nil" "none")))))
+       (package-archives (if opt-in
+                             '(("gnu" . "https://elpa.gnu.org/packages/")
+                               ("nongnu" . "https://elpa.nongnu.org/nongnu/")
+                               ("melpa" . "https://melpa.org/packages/")
+                               ("elpaish" . "https://tychoish.github.io/elpaish/snapshot/"))
+                           '(("gnu" . "https://elpa.gnu.org/packages/")
+                             ("nongnu" . "https://elpa.nongnu.org/nongnu/")
+                             ("melpa" . "https://melpa.org/packages/")))))
+  (when opt-in
+    (add-to-list 'package-unsigned-archives "elpaish"))
   (package-initialize)
 
   ;; Ensure elpaish pkg/ directory takes precedence over installed packages if present

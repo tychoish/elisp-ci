@@ -133,6 +133,37 @@
           (should (equal (cdr (assoc "gnu" package-archives)) "https://mirrors.ustc.edu.cn/elpa/gnu/")))
       (setq package-archives orig-archives))))
 
+(ert-deftest action-scripts/configure-archives-default-excludes-elpaish ()
+  "Test that default archive configuration does not include ELPAish."
+  (let ((orig-archives (copy-alist package-archives))
+        (orig-unsigned (copy-sequence package-unsigned-archives))
+        (process-environment (cons "INPUT_ELPAISH=false"
+                                   (cons "INPUT_INCLUDE_ELPAISH=false"
+                                         (cons "INPUT_ARCHIVES=" process-environment)))))
+    (unwind-protect
+        (progn
+          (elisp-ci--configure-archives)
+          (should (assoc "gnu" package-archives))
+          (should (assoc "nongnu" package-archives))
+          (should (assoc "melpa" package-archives))
+          (should (null (assoc "elpaish" package-archives)))
+          (should (null (member "elpaish" package-unsigned-archives))))
+      (setq package-archives orig-archives)
+      (setq package-unsigned-archives orig-unsigned))))
+
+(ert-deftest action-scripts/configure-archives-opt-in-elpaish ()
+  "Test that setting INPUT_ELPAISH=true includes ELPAish repository."
+  (let ((orig-archives (copy-alist package-archives))
+        (orig-unsigned (copy-sequence package-unsigned-archives))
+        (process-environment (cons "INPUT_ELPAISH=true" process-environment)))
+    (unwind-protect
+        (progn
+          (elisp-ci--configure-archives)
+          (should (equal (cdr (assoc "elpaish" package-archives)) "https://tychoish.github.io/elpaish/snapshot/"))
+          (should (member "elpaish" package-unsigned-archives)))
+      (setq package-archives orig-archives)
+      (setq package-unsigned-archives orig-unsigned))))
+
 (ert-deftest action-scripts/setup-package-dir-env ()
   "Test configuring package-user-dir via environment variables."
   (let* ((orig-dir package-user-dir)

@@ -131,8 +131,10 @@ Runs ERT or ELPAish test suites with automatic archive, keyring, and dependency 
 | =dependencies=        | =""= (auto-discovered)                                      | ELPA packages (or set via =ELISP_CI_DEPENDENCIES=).          |
 | =test-files=          | ="test/test-*.el"=                                          | Test files or globs to load and execute (delimited string).   |
 | =load-paths=          | ="."=                                                       | Directories to prepend to =load-path= (delimited string).     |
-| =archives=            | ="gnu nongnu melpa elpaish"=                                | Enabled package archives (space-delimited string).           |
-| =unsigned-archives=   | ="elpaish"=                                                 | Fallback unsigned archive whitelist (space-delimited string).|
+| =archives=            | ="gnu nongnu melpa"=                                        | Enabled package archives (space-delimited string).           |
+| =elpaish=             | ="false"=                                                   | Opt-in to include ELPAish snapshot package archive (true/false).|
+| =include-elpaish=     | ="false"=                                                   | Alias for =elpaish=.                                         |
+| =unsigned-archives=   | =""= (or ="elpaish"= when opted in)                         | Fallback unsigned archive whitelist (space-delimited string).|
 | =keyring-url=         | ="https://tychoish.github.io/elpaish/elpaish-keyring.gpg"=   | Remote GPG keyring for ELPAish signature verification.        |
 | =runner=              | ="ert"=                                                     | Test runner engine (=ert= or =elpaish=).                     |
 | =gnu-mirror=          | =""=                                                        | Custom URL or mirror shortcut (=ustc=, =tuna=, =bfsu=) for GNU ELPA. |
@@ -173,8 +175,10 @@ Runs byte-compilation, =checkdoc=, =package-lint=, and =relint= across source fi
 | =fail-on-warning=     | ="true"=                                                    | Treat byte-compiler warnings as fatal errors.                |
 | =gnu-mirror=          | =""=                                                        | Custom URL or mirror shortcut (=ustc=, =tuna=, =bfsu=) for GNU ELPA. |
 | =nongnu-mirror=       | =""=                                                        | Custom URL or mirror shortcut (=ustc=, =tuna=, =bfsu=) for NonGNU ELPA. |
-| =archives=            | ="gnu nongnu melpa elpaish"=                                | Enabled package archives (space-delimited string).           |
-| =unsigned-archives=   | ="elpaish"=                                                 | Fallback unsigned archive whitelist (space-delimited string).|
+| =archives=            | ="gnu nongnu melpa"=                                        | Enabled package archives (space-delimited string).           |
+| =elpaish=             | ="false"=                                                   | Opt-in to include ELPAish snapshot package archive (true/false).|
+| =include-elpaish=     | ="false"=                                                   | Alias for =elpaish=.                                         |
+| =unsigned-archives=   | =""= (or ="elpaish"= when opted in)                         | Fallback unsigned archive whitelist (space-delimited string).|
 | =keyring-url=         | ="https://tychoish.github.io/elpaish/elpaish-keyring.gpg"=   | Remote GPG keyring URL.                                      |
 | =cache=               | ="false"=                                                   | Enable integrated dependency caching in this step.           |
 | =cache-elpa=          | ="true"=                                                    | Specifically toggle ELPA package and archive cache.          |
@@ -212,8 +216,10 @@ coverage artifacts, and outputs a formatted markdown summary into
 | =output-file=         | ="coverage.json"=                                           | Target file path for generated coverage data.                |
 | =gnu-mirror=          | =""=                                                        | Custom URL or mirror shortcut (=ustc=, =tuna=, =bfsu=) for GNU ELPA. |
 | =nongnu-mirror=       | =""=                                                        | Custom URL or mirror shortcut (=ustc=, =tuna=, =bfsu=) for NonGNU ELPA. |
-| =archives=            | ="gnu nongnu melpa elpaish"=                                | Enabled package archives (space-delimited string).           |
-| =unsigned-archives=   | ="elpaish"=                                                 | Fallback unsigned archive whitelist (space-delimited string).|
+| =archives=            | ="gnu nongnu melpa"=                                        | Enabled package archives (space-delimited string).           |
+| =elpaish=             | ="false"=                                                   | Opt-in to include ELPAish snapshot package archive (true/false).|
+| =include-elpaish=     | ="false"=                                                   | Alias for =elpaish=.                                         |
+| =unsigned-archives=   | =""= (or ="elpaish"= when opted in)                         | Fallback unsigned archive whitelist (space-delimited string).|
 | =keyring-url=         | ="https://tychoish.github.io/elpaish/elpaish-keyring.gpg"=   | Remote GPG keyring URL.                                      |
 | =cache=               | ="false"=                                                   | Enable integrated dependency caching in this step.           |
 | =cache-elpa=          | ="true"=                                                    | Specifically toggle ELPA package and archive cache.          |

@@ -44,11 +44,22 @@
         (load bootstrap-script nil nil t)
         (when (fboundp 'elisp-ci--configure-archives)
           (elisp-ci--configure-archives)))
-    (setq package-archives '(("gnu" . "https://elpa.gnu.org/packages/")
-                             ("nongnu" . "https://elpa.nongnu.org/nongnu/")
-                             ("melpa" . "https://melpa.org/packages/")
-                             ("elpaish" . "https://tychoish.github.io/elpaish/snapshot/")))
-    (add-to-list 'package-unsigned-archives "elpaish")))
+    (let ((opt-in (let ((val (or (getenv "INPUT_INCLUDE_ELPAISH")
+                                 (getenv "INPUT_ELPAISH")
+                                 (getenv "ELISP_CI_INCLUDE_ELPAISH")
+                                 (getenv "ELISP_CI_ELPAISH")
+                                 "true")))
+                    (not (member (downcase (string-trim val)) '("" "false" "off" "no" "0" "nil" "none"))))))
+      (setq package-archives (if opt-in
+                                 '(("gnu" . "https://elpa.gnu.org/packages/")
+                                   ("nongnu" . "https://elpa.nongnu.org/nongnu/")
+                                   ("melpa" . "https://melpa.org/packages/")
+                                   ("elpaish" . "https://tychoish.github.io/elpaish/snapshot/"))
+                               '(("gnu" . "https://elpa.gnu.org/packages/")
+                                 ("nongnu" . "https://elpa.nongnu.org/nongnu/")
+                                 ("melpa" . "https://melpa.org/packages/"))))
+      (when opt-in
+        (add-to-list 'package-unsigned-archives "elpaish"))))
 
 (package-initialize)
 

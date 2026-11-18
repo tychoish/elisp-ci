@@ -245,17 +245,39 @@ are enabled, otherwise UPSTREAM-URL."
      (t
       (string-trim mirror-input)))))
 
+(defun elisp-ci--truthy-p (val)
+  "Return non-nil if VAL represents a truthy boolean string."
+  (and val
+       (not (member (downcase (string-trim val)) '("" "false" "off" "no" "0" "nil" "none")))))
+
+(defun elisp-ci--elpaish-enabled-p ()
+  "Return non-nil if ELPAish archive opt-in is enabled via environment."
+  (let ((val (or (elisp-ci--getenv-nonempty "INPUT_INCLUDE_ELPAISH")
+                 (elisp-ci--getenv-nonempty "INPUT_ELPAISH")
+                 (elisp-ci--getenv-nonempty "ELISP_CI_INCLUDE_ELPAISH")
+                 (elisp-ci--getenv-nonempty "ELISP_CI_ELPAISH")
+                 (elisp-ci--getenv-nonempty "INCLUDE_ELPAISH")
+                 (elisp-ci--getenv-nonempty "ELPAISH"))))
+    (and val (elisp-ci--truthy-p val))))
+
 (defun elisp-ci--configure-archives ()
   "Configure package archives and unsigned archives from environment."
-  (let* ((archive-env (or (elisp-ci--getenv-nonempty "INPUT_ARCHIVES")
+  (let* ((opt-in-elpaish (elisp-ci--elpaish-enabled-p))
+         (archive-env (or (elisp-ci--getenv-nonempty "INPUT_ARCHIVES")
                           (elisp-ci--getenv-nonempty "ELISP_CI_ARCHIVES")
                           (elisp-ci--getenv-nonempty "ELISP_ARCHIVES")))
-         (archive-names (or (and archive-env (elisp-ci--parse-list archive-env))
-                            '("gnu" "nongnu" "melpa" "elpaish")))
+         (base-archive-names (or (and archive-env (elisp-ci--parse-list archive-env))
+                                 '("gnu" "nongnu" "melpa")))
+         (archive-names (if (and opt-in-elpaish (not (member "elpaish" base-archive-names)))
+                            (append base-archive-names '("elpaish"))
+                          base-archive-names))
+         (has-elpaish (member "elpaish" archive-names))
          (unsigned-env (or (elisp-ci--getenv-nonempty "INPUT_UNSIGNED_ARCHIVES")
                            (elisp-ci--getenv-nonempty "ELISP_CI_UNSIGNED_ARCHIVES")))
-         (unsigned-names (or (and unsigned-env (elisp-ci--parse-list unsigned-env))
-                             '("elpaish")))
+         (unsigned-names (cond
+                          (unsigned-env (elisp-ci--parse-list unsigned-env))
+                          (has-elpaish '("elpaish"))
+                          (t nil)))
          (gnu-mirror (or (elisp-ci--getenv-nonempty "INPUT_GNU_MIRROR")
                          (elisp-ci--getenv-nonempty "ELISP_CI_GNU_MIRROR")
                          (elisp-ci--getenv-nonempty "ELISP_CI_GNU_URL")
