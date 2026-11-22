@@ -76,10 +76,16 @@
     (error nil)))
 ;; logx is a hard dependency of elpaish-install; it must be present before
 ;; that library is loaded, since the installer itself logs through it.
+;; A restored cache can hold archive indexes that predate logx, and the
+;; refresh above is skipped when they exist, so refresh once and retry.
 (unless (package-installed-p 'logx)
-  (condition-case err
+  (condition-case nil
       (package-install 'logx)
-    (error (message "Warning: could not install logx: %s" (error-message-string err)))))
+    (error
+     (condition-case err
+         (progn (package-refresh-contents)
+                (package-install 'logx))
+       (error (message "Warning: could not install logx: %s" (error-message-string err)))))))
 (let ((ci-dir (expand-file-name "elpa-ci" default-directory)))
   (dolist (d (file-expand-wildcards (expand-file-name "*" ci-dir)))
     (when (file-directory-p d)
