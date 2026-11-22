@@ -74,6 +74,12 @@
   (condition-case nil
       (package-install 'compat)
     (error nil)))
+;; logx is a hard dependency of elpaish-install; it must be present before
+;; that library is loaded, since the installer itself logs through it.
+(unless (package-installed-p 'logx)
+  (condition-case err
+      (package-install 'logx)
+    (error (message "Warning: could not install logx: %s" (error-message-string err)))))
 (let ((ci-dir (expand-file-name "elpa-ci" default-directory)))
   (dolist (d (file-expand-wildcards (expand-file-name "*" ci-dir)))
     (when (file-directory-p d)
