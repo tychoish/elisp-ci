@@ -23,6 +23,10 @@ inputs:
     description: "Linters whose errors or warnings will fail the CI step (space/comma-delimited string)."
     required: false
     default: "byte-compile checkdoc"
+  package-lint-main-file:
+    description: "Main file of a multi-file package, used by package-lint for prefix and dependencies. Default: the target file named after the repository."
+    required: false
+    default: ""
   fail-on-warning:
     description: "Treat compiler warnings as fatal errors (true/false)."
     required: false
@@ -164,6 +168,7 @@ runs:
         INPUT_LINTERS: ${{ inputs.linters }}
         INPUT_REQUIRED_LINTERS: ${{ inputs.required-linters }}
         INPUT_FAIL_ON_WARNING: ${{ inputs.fail-on-warning }}
+        INPUT_PACKAGE_LINT_MAIN_FILE: ${{ inputs.package-lint-main-file }}
         INPUT_ARCHIVES: ${{ inputs.archives }}
         INPUT_ELPAISH: ${{ inputs.elpaish }}
         INPUT_INCLUDE_ELPAISH: ${{ inputs.include-elpaish }}

@@ -26,6 +26,24 @@
         (setq matched (append matched files))))
     (delete-dups matched)))
 
+(defun elisp-ci--package-lint-main-file (files)
+  "Return the package-lint main file for FILES, or nil.
+Use INPUT_PACKAGE_LINT_MAIN_FILE when set.  Otherwise pick the file in
+FILES named after the repository (GITHUB_REPOSITORY, or the current
+directory), so secondary files of a multi-file package are linted
+against its prefix and dependencies."
+  (let ((explicit (string-trim (or (getenv "INPUT_PACKAGE_LINT_MAIN_FILE") "")))
+        (repo (file-name-nondirectory
+               (directory-file-name
+                (or (getenv "GITHUB_REPOSITORY") default-directory)))))
+    (if (not (string-empty-p explicit))
+        (expand-file-name explicit)
+      (when-let* ((match (seq-find
+                          (lambda (f)
+                            (string= (file-name-base f) repo))
+                          files)))
+        (expand-file-name match)))))
+
 (defun elisp-ci--run-lint ()
   "Run enabled linters across target files with configurable requirement gates."
   (let* ((files (elisp-ci--find-target-files))
@@ -88,6 +106,9 @@
       (message "\n=== [Linter: package-lint] ===")
       (elisp-ci--install-dependencies '(package-lint))
       (require 'package-lint)
+      (setq package-lint-main-file
+            (elisp-ci--package-lint-main-file files))
+      (message "package-lint main file: %S" package-lint-main-file)
       (dolist (f files)
         (message "==> Running package-lint on %s..." f)
         (condition-case err
