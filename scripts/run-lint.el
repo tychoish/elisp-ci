@@ -10,6 +10,7 @@
   (when (file-exists-p bootstrap-file)
     (load-file bootstrap-file)))
 (require 'bootstrap nil t)
+(defvar package-lint-main-file)
 (declare-function package-lint-buffer "package-lint")
 (declare-function relint-file "relint")
 
