@@ -10,7 +10,7 @@
   (when (file-exists-p bootstrap-file)
     (load-file bootstrap-file)))
 (require 'bootstrap nil t)
-(declare-function package-lint-file "package-lint")
+(declare-function package-lint-buffer "package-lint")
 (declare-function relint-file "relint")
 
 
@@ -91,15 +91,22 @@
       (dolist (f files)
         (message "==> Running package-lint on %s..." f)
         (condition-case err
-            (let ((errors (package-lint-file (expand-file-name f))))
+            (let* ((buf (find-file-noselect (expand-file-name f) t))
+                   (errors (with-current-buffer buf
+                             (unwind-protect (package-lint-buffer)
+                               (kill-buffer buf)))))
               (when errors
                 (dolist (e errors)
-                  (message "package-lint: %s:%d: %s" f (nth 1 e) (nth 2 e)))
+                  (message "package-lint: %s:%d:%d: %s: %s"
+                           f (nth 0 e) (nth 1 e) (nth 2 e) (nth 3 e)))
                 (if (member "package-lint" required-linters)
                     (cl-incf error-count (length errors))
                   (cl-incf warning-count (length errors)))))
           (error
-           (message "Error running package-lint on %s: %S" f err)))))
+           (message "ERROR: package-lint failed on %s: %S" f err)
+           (if (member "package-lint" required-linters)
+               (cl-incf error-count)
+             (cl-incf warning-count))))))
 
     ;; 4. Relint (regexp linter, if requested)
     (when (member "relint" active-linters)
