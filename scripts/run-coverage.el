@@ -53,8 +53,12 @@
     ;; Install undercover from MELPA
     (elisp-ci--install-dependencies '(undercover))
     (require 'undercover)
+    (make-directory (file-name-directory (expand-file-name output-file)) t)
     (setq undercover-report-format (intern format-opt))
     (setq undercover-report-file (expand-file-name output-file))
+    (setq undercover--report-format (intern format-opt))
+    (setq undercover--report-file-path (expand-file-name output-file))
+    (setq undercover--send-report nil)
 
     ;; Instrument source files
     (message "Instrumenting %d source file(s) for coverage: %S" (length source-files) source-files)
