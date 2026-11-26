@@ -76,10 +76,9 @@
       (load-file (expand-file-name tf)))
 
     (message "Running ERT tests with coverage measurement...")
-    (condition-case err
-        (ert-run-tests-batch-and-exit)
-      (error
-       (message "Tests execution finished with: %S" err)))))
+    ;; ERT must handle its own skip conditions.  On Emacs 29, an outer
+    ;; `condition-case' for errors aborts the run when a test is skipped.
+    (ert-run-tests-batch-and-exit)))
 
 (elisp-ci--setup-and-run-coverage)
 
