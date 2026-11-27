@@ -202,6 +202,21 @@ Instruments source files using =under-cover=, executes test suites, exports
 coverage artifacts, and outputs a formatted markdown summary into
 =$GITHUB_STEP_SUMMARY=.
 
+The summary shows per-file line coverage percentages,
+executable/covered/missed line counts, missed line numbers, and a total
+weighted by executable line count. Source paths remain relative to the
+workspace, so files with the same name stay distinguishable. Files
+without measured coverage display =N/A= rather than a misleading
+percentage. The summary uses the same collected line statistics for
+every report format and is written after the artifact is generated.
+
+Coverage artifacts contain machine-readable data for SimpleCov, LCOV,
+and Coveralls; GitHub renders the human-readable table in the workflow's
+job summary. Use =report-format: text= for a readable artifact, and add
+=actions/upload-artifact= to your workflow to make the output file
+downloadable. Each run replaces the output file rather than merging
+stale results.
+
 *Action reference*: =tychoish/elisp-ci/coverage@main=
 
 *** Options

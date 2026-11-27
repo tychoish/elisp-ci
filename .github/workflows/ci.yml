@@ -38,6 +38,7 @@ jobs:
             - scripts
           test-files: |
             - test/test-action-scripts.el
+            - test/test-coverage-summary.el
             - test/test-fixture-pkg.el
 
       - name: Run Linting Action (Configured Linters)
@@ -55,8 +56,15 @@ jobs:
       - name: Run Coverage Action
         uses: ./coverage
         with:
-          source-files: "test/fixtures/fixture-pkg.el"
-          test-files: "test/test-fixture-pkg.el"
-          load-paths: "test/fixtures"
+          source-files: "test/fixtures/fixture-pkg.el scripts/coverage-summary.el"
+          test-files: "test/test-fixture-pkg.el test/test-coverage-summary.el"
+          load-paths: "test/fixtures scripts"
           report-format: "text"
           output-file: "coverage.txt"
+
+      - name: Upload Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.emacs-version }}
+          path: coverage.txt

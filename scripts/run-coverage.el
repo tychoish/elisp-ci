@@ -1,35 +1,34 @@
 ;;; run-coverage.el --- Test coverage measurement and reporting harness -*- lexical-binding: t; -*-
 
+;;; Commentary:
+;; Instrument sources, run ERT, and report measured line coverage on exit.
+
+;;; Code:
+
 (require 'ert)
 (require 'seq)
 (require 'subr-x)
 
-(defvar undercover-report-format)
-(defvar undercover-report-file)
-(declare-function undercover "undercover")
-(declare-function undercover-safe "undercover")
+(defvar undercover--files-coverage-statistics)
+(defvar undercover-force-coverage)
+(declare-function undercover-report "undercover")
+(declare-function elisp-ci--render-step-summary "coverage-summary")
 
 ;; Load bootstrap logic
 (let ((bootstrap-file (expand-file-name "bootstrap.el" (file-name-directory (or load-file-name buffer-file-name)))))
   (when (file-exists-p bootstrap-file)
     (load-file bootstrap-file)))
-(require 'bootstrap nil t)
+(require 'bootstrap)
 
-(defun elisp-ci--render-step-summary (source-files output-file format-opt)
-  "Render a markdown summary table to $GITHUB_STEP_SUMMARY if available."
-  (let ((summary-file (getenv "GITHUB_STEP_SUMMARY")))
-    (when (and summary-file (file-exists-p summary-file))
-      (with-temp-buffer
-        (insert "\n## 📊 Emacs Lisp Test Coverage Report\n\n")
-        (insert (format "- **Report Format**: `%s`\n" format-opt))
-        (insert (format "- **Artifact Output**: `%s`\n" output-file))
-        (insert (format "- **Instrumented Files**: %d file(s)\n\n" (length source-files)))
-        (insert "| Source File | Status |\n")
-        (insert "| :--- | :--- |\n")
-        (dolist (sf source-files)
-          (insert (format "| `%s` | Instrumented |\n" (file-name-nondirectory sf))))
-        (insert "\n")
-        (append-to-file (point-min) (point-max) summary-file)))))
+(defvar elisp-ci--coverage-context nil
+  "Source files, output path and format for the current coverage run.")
+
+(defun elisp-ci--finish-coverage ()
+  "Write the coverage artifact before rendering its measured statistics."
+  (undercover-report)
+  (pcase-let ((`(,source-files ,output-file ,format-opt) elisp-ci--coverage-context))
+    (elisp-ci--render-step-summary
+     source-files output-file format-opt undercover--files-coverage-statistics)))
 
 (defun elisp-ci--setup-and-run-coverage ()
   "Setup undercover, load test files, and output coverage report."
@@ -54,21 +53,24 @@
     (elisp-ci--install-dependencies '(undercover))
     (require 'undercover)
     (make-directory (file-name-directory (expand-file-name output-file)) t)
-    (setq undercover-report-format (intern format-opt))
-    (setq undercover-report-file (expand-file-name output-file))
-    (setq undercover--report-format (intern format-opt))
-    (setq undercover--report-file-path (expand-file-name output-file))
-    (setq undercover--send-report nil)
+    (setq undercover-force-coverage t)
 
     ;; Instrument source files
     (message "Instrumenting %d source file(s) for coverage: %S" (length source-files) source-files)
-    (dolist (sf source-files)
-      (undercover sf))
+    (eval `(undercover ,@source-files
+                       (:report-format ',(intern format-opt))
+                       (:report-file ,(expand-file-name output-file))
+                       (:report-on-kill nil)
+                       (:send-report nil)
+                       (:merge-report nil))
+          t)
+    (require 'coverage-summary
+             (expand-file-name "coverage-summary.el"
+                               (file-name-directory (or load-file-name buffer-file-name))))
 
     ;; Hook markdown summary table to kill-emacs-hook
-    (add-hook 'kill-emacs-hook
-              (lambda ()
-                (elisp-ci--render-step-summary source-files output-file format-opt)))
+    (setq elisp-ci--coverage-context (list source-files output-file format-opt))
+    (add-hook 'kill-emacs-hook #'elisp-ci--finish-coverage)
 
     ;; Load test files and execute ERT suite
     (message "Loading test files: %S" test-files)
@@ -82,4 +84,5 @@
 
 (elisp-ci--setup-and-run-coverage)
 
+(provide 'run-coverage)
 ;;; run-coverage.el ends here
